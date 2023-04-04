@@ -1,0 +1,53 @@
+---
+title: "Hierarchical Clustering"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Source R functions, message=FALSE, warning=FALSE, include=FALSE}
+
+source("R_functions/utils.R", local = knitr::knit_global())
+source("R_functions/read_data.R", local = knitr::knit_global())
+
+```
+
+
+# PCA Plot
+
+```{r PCA, echo=FALSE, fig.height=7, fig.width=7, message=FALSE, warning=FALSE, paged.print=TRUE}
+PCA_BIPLOT(vsd = DeSeq2_return$vsd,
+           design = deseq2_design_condition,
+           title = Plot_title,
+           batch = Batch_column_name)
+
+
+```
+
+
+# PCA Loadings Plot
+
+```{r PCA loadings, echo=FALSE, fig.height=9, fig.width=9, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+Plot_pca_loadings(vsd = DeSeq2_return$vsd,
+                  nPCs = 2,
+                  gene_prop = 1,
+                  title = Plot_title)
+
+
+```
+
+# Heatmap
+
+
+```{r Heatmap, fig.height=16, fig.width=10, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+make_heatmap(pathways = "Reactome")
+
+
+```
+
+

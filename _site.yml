@@ -1,0 +1,19 @@
+name: "rna-seq-analysis"
+output_dir: Kallisto_report
+navbar:
+  title: "DeSeq2 Report"
+  left:
+    - text: "Home"
+      href: index.html
+    - text: "Library quality check"
+      href: library_check.html
+    - text: "Clustering"
+      href: clustering.html
+    - text: "Differential Expression"
+      href: deseq2.html
+    - text: "Enrichment"
+      href: enrichment.html
+    - text: "Gene Regulatory networks"
+      href: GRN.html
+    - text: "About"
+      href: about.html

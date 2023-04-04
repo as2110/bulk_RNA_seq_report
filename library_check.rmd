@@ -1,0 +1,43 @@
+---
+title: "RNA seq quality check"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Source R functions, message=FALSE, warning=FALSE, include=FALSE}
+
+source("R_functions/utils.R", local = knitr::knit_global())
+source("R_functions/read_data.R", local = knitr::knit_global())
+
+```
+
+# Bar plot of reads
+```{r Library Size, echo=FALSE, fig.height=8, fig.width=8, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+
+Library_size_check(title = Plot_title,
+                   dds = DeSeq2_return[["dds"]],
+                   design =  deseq2_design_condition,
+                   fill = deseq2_design_condition ##can be "Batch", "Design" or name of column
+                   )
+    
+                  
+```
+
+# Violin plot of reads
+```{r Library Violins, echo=FALSE, fig.height=8, fig.width=8, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+Library_VP(title = Plot_title,
+           vsd = DeSeq2_return[["vsd"]],
+           design = deseq2_design_condition,
+           test = Test,
+           control = Control,
+           fill = Batch_column_name)
+```
+
+

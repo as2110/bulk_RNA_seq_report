@@ -1,0 +1,390 @@
+---
+title: "child"
+author: "Anand Srinivasan"
+date: "31/01/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r sparrow}
+library(sparrow)
+#BiocManager::install("DEFormats")
+library(DEFormats)
+
+res <- paste0(results_dir, "deseq2_results_annotated.tsv")
+results_annotated <- read.delim(res)
+gdb <- sparrow::getMSigGeneSetDb(c('H', 'C2'), species = 'human', id.type = c("ensembl", "entrez", "symbol"))
+
+
+genes <- dplyr::select(results_annotated, ensembl_gene_id, ENTREZID, hgnc_symbol)
+
+design <- model.matrix(~DeSeq2_return$dds[[deseq2_design_condition]])
+dge <- DGEList(counts = assay(DeSeq2_return$dds), 
+               samples = data.frame(DeSeq2_return$dds$SampleName, DeSeq2_return$dds[[deseq2_design_condition]]), 
+               norm.factors = NULL, 
+               group = DeSeq2_return$dds[[deseq2_design_condition]], 
+               genes = genes)
+vm <- limma::voom(dge, design)
+
+
+mg <- seas(
+  gsd = gdb,
+  x = vm,
+  design = vm$design,
+  #contrast = DeSeq2_return$dds$Treatment,
+  methods = c("fgsea", "camera", "ora", "fry", "roast")
+)
+
+
+mg_res.fg <- sparrow::results(mg, "fgsea") %>% 
+  dplyr::filter(padj < 0.05, collection == "H") %>% 
+  arrange(desc(mean.logFC)) 
+
+###%>% select(name, n, mean.logFC, padj) 
+
+View(mg_res.fg)
+
+iplot(mg, 'HALLMARK_INTERFERON_ALPHA_RESPONSE',
+      type = 'density', value = 'logFC')
+```
+
+
+```{r multiGSEA}
+library(multiGSEA)
+#library(tidyverse)
+#library( magrittr)
+res <- paste0(results_dir, "deseq2_results_annotated.tsv")
+results_annotated <- read.delim(res)
+omics_data <- initOmicsDataStructure( layer = c("transcriptome"))
+                                                
+                                                                                                                                 #"proteome",
+                                                #"metabolome"))
+##create data frame of DEG results
+transcriptome <- results_annotated %>% drop_na()
+
+#load the layer
+omics_data$transcriptome <- rankFeatures( transcriptome$log2FoldChange, 
+                                          transcriptome$padj)
+
+#
+names(omics_data$transcriptome) <- transcriptome$hgnc_symbol
+
+#get the pathways
+databases <- c( "reactome")
+layers <- names(omics_data)
+
+
+new_pathways <- getMultiOmicsFeatures(
+  #dbs = databases,
+  layer = layers,
+  returnTranscriptome = "SYMBOL",
+  useLocal = FALSE
+)
+
+DeSeq2_return$vsd$sizeFactor
+##run the gsea
+enrichment_scores <- multiGSEA(new_pathways, omics_data)
+
+#get pvalues
+
+df <- extractPvalues( enrichmentScores = enrichment_scores,
+                      pathwayNames = names(new_pathways[[1]]))
+
+df <- cbind( data.frame( pathway = names( new_pathways[[1]])), df)
+
+df <- df %>% dplyr::filter(transcriptome_padj < 0.05)
+
+
+##enrichment scores
+
+mGSEA_res <- as.data.frame(enrichment_scores) %>% 
+  dplyr::select(transcriptome.pathway, transcriptome.NES, transcriptome.padj, transcriptome.size, transcriptome.leadingEdge) %>% 
+  #dplyr::filter(transcriptome.padj < 0.05) %>% 
+  arrange(transcriptome.NES)
+
+
+
+
+
+```
+
+
+
+
+
+
+
+```{r}
+
+#BioCor
+#GNET2
+#TRENA
+# ComHub python only
+#netZooR
+#remotes::install_github("OceaneCsn/DIANE", upgrade = "never")
+
+#library(DIANE)
+#DIANE::run_app()
+
+hypoxiaGeneSet <- HS_HALLMARK <- msigdbr(species = "Homo sapiens", category = "H")%>% filter(str_detect(gs_name, "HYPOXIA")) %>% dplyr::select(human_gene_symbol, human_ensembl_gene)
+
+
+hypoxiaGeneSet %>%
+  filter(human_gene_symbol %in% DownSigGenes)
+
+
+
+```
+
+
+
+
+```{r pathfindR, fig.height=6, fig.width=12}
+#install.packages("pak") # if you have not installed "pak"
+# need to have java 8 or higher
+#https://cimentadaj.github.io/blog/2018-05-25-installing-rjava-on-windows-10/installing-rjava-on-windows-10/index.html
+#install.packages("pathfindR")
+library(pathfindR)
+res <- paste0(results_dir, "deseq2_results_annotated.tsv")
+results_annotated <- read.delim(res)
+pr_input <- results_annotated %>%
+  select(Gene.symbol = hgnc_symbol, 
+         logFC	= log2FoldChange, 
+         adj.P.Val = padj) %>% 
+  filter(!is.na(adj.P.Val), !is.na(Gene.symbol), !is.na(logFC))
+
+
+
+
+pathfindR_output <- run_pathfindR(
+  pr_input,
+  gene_sets = "Reactome",
+  min_gset_size = 5,
+  max_gset_size = 500,
+  output_dir = file.path(results_dir, "pathfindR_results"),
+  plot_enrichment_chart = FALSE
+)
+
+enrichment_chart(result_df = pathfindR_output, 
+                 top_terms = 15)
+
+```
+
+
+
+
+
+
+
+
+```{r describe}
+
+all_genes_in_sample <- read.delim(file.path(results_dir, "Car_WT_results_all_genes.tsv")) %>%
+  mutate(GENEBIOTYPE = mapIds(#org.Hs.eg.db,
+                         EnsDb.Hsapiens.v86,
+                         keys=ensembl_gene_id,
+                         column="GENEBIOTYPE",
+                         keytype="GENEID",
+                         multiVals="first"))
+
+all_genes_in_sample %<>%
+  filter(padj < 0.05)
+
+all_genes_in_sample %>% filter(ENTREZID == "") %>% nrow()
+
+a <-
+results_annotated %>%
+  filter(padj < 0.05) %>% 
+  mutate(GENEBIOTYPE = mapIds(#org.Hs.eg.db,
+                         EnsDb.Hsapiens.v86,
+                         keys=ensembl_gene_id,
+                         column="GENEBIOTYPE",
+                         keytype="GENEID",
+                         multiVals="first"))
+
+a %>% filter(GENEBIOTYPE != "protein_coding") %>% 
+  filter(!GENEBIOTYPE == "TEC") %>%
+  filter(!GENEBIOTYPE %>% str_detect("pseudo")) %>%
+  View()
+
+
+
+
+##HALLMARKS GENE SETS
+  HS_HALLMARK <- msigdbr(species = "Homo sapiens", category = "H")
+  HS_HALLMARK <- split(x = HS_HALLMARK$gene_symbol, f = HS_HALLMARK$gs_name)
+
+
+ 
+ 
+Volcano$data %<>% filter(hgnc_symbol %in%  HS_HALLMARK$HALLMARK_INTERFERON_ALPHA_RESPONSE) 
+
+
+Volcano  
+```
+
+
+
+```{r yaml, echo=TRUE,warning=FALSE,message=FALSE,error=FALSE, include=FALSE}
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+library(biomaRt)
+library("EnsDb.Hsapiens.v86")
+library(tidyverse)
+library(yaml)
+library(tximport)
+library(tximportData)
+
+library(ensembldb)
+#BiocManager::install("tximportData", update = FALSE)
+params <- read_yaml("config.yml")
+
+
+```
+
+
+```{r input, echo=TRUE,warning=FALSE,message=FALSE,error=FALSE, include=FALSE}
+
+if(params$kallisto){
+  print("kallisto input detected")
+  
+  #design_files <- list.files(path='designs_kallisto/', pattern = "design_")
+  
+  # load in the sample metadata file
+  sample_meta_data <- list.files(pattern = "*.tsv", path= ".", full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
+  sample_table <- read.delim(sample_meta_data) %>% dplyr::rename("Sample" = 1)
+  
+ 
+  if (dir.exists(params$kallisto_dir)) {
+    path <- file.path(params$kallisto_dir, sample_table$Sample, "abundance.h5")
+    sample_table <- dplyr::mutate(sample_table, path = path)
+
+  if(params$species == "human"){
+    # Create the tx2gene file that will map transcripts to genes
+    Tx <- transcripts(EnsDb.Hsapiens.v86, columns=c("tx_id", "gene_id", "symbol"))
+    Tx <- as_tibble(Tx)
+    Tx <- dplyr::rename(Tx, target_id = tx_id, ens_gene = gene_id, ext_gene = symbol)
+    Tx <- dplyr::select(Tx, "target_id", "ens_gene", "ext_gene")
+    
+  }else if(params$species == "mouse"){
+    Tx <- transcripts(EnsDb.Mmusculus.v79, columns=c("tx_id", "gene_id", "symbol"))
+    Tx <- as_tibble(Tx)
+    Tx <- dplyr::rename(Tx, target_id = tx_id, ens_gene = gene_id, ext_gene = symbol)
+    Tx <- dplyr::select(Tx, "target_id", "ens_gene", "ext_gene")  
+  }else if(params$species == "macaque"){
+    orgSymbols <- keys(org.Mmu.eg.db, keytype="ENSEMBL")
+    mart <- useMart(dataset = "mmulatta_gene_ensembl", biomart='ensembl')
+    tx2gene <- getBM(attributes = c('ensembl_gene_id', 'ensembl_gene_id_version', 'ensembl_transcript_id', 'ensembl_transcript_id_version','entrezgene_id'),
+      filters = 'ensembl_gene_id',
+      values = orgSymbols, 
+      mart = mart)
+    Tx <- tx2gene %>%   dplyr::select(ensembl_transcript_id, ensembl_gene_id)
+    colnames(Tx) <- c("TXNAME", "GENEID")
+
+  }else if(params$species == "pig"){
+    ensembl = useMart(biomart="ENSEMBL_MART_ENSEMBL",
+                  dataset="sscrofa_gene_ensembl", 
+                  host="uswest.ensembl.org",
+                  ensemblRedirect = FALSE)
+    orgSymbols <- unlist(getBM(attributes = 'ensembl_gene_id', mart=ensembl))
+    mart <- useMart(dataset = "sscrofa_gene_ensembl", biomart='ensembl', host="uswest.ensembl.org")
+    tx2gene <- getBM(attributes = c('ensembl_gene_id', 'ensembl_gene_id_version', 'ensembl_transcript_id', 'ensembl_transcript_id_version','entrezgene_id'),
+      filters = 'ensembl_gene_id',
+      values = orgSymbols, 
+      mart = mart)
+    Tx <- tx2gene %>%   dplyr::select(ensembl_transcript_id, ensembl_gene_id)
+    colnames(Tx) <- c("TXNAME", "GENEID")
+  }else if(params$species == "rabbit"){
+    ensembl = useMart(biomart="ENSEMBL_MART_ENSEMBL",
+                  dataset="ocuniculus_gene_ensembl", 
+                  host="uswest.ensembl.org",
+                  ensemblRedirect = FALSE)
+    orgSymbols <- unlist(getBM(attributes = 'ensembl_gene_id', mart=ensembl))
+    mart <- useMart(dataset = "ocuniculus_gene_ensembl", biomart='ensembl', host="uswest.ensembl.org")
+    tx2gene <- getBM(attributes = c('ensembl_gene_id', 'ensembl_gene_id_version', 'ensembl_transcript_id', 'ensembl_transcript_id_version','entrezgene_id'),
+      filters = 'ensembl_gene_id',
+      values = orgSymbols, 
+      mart = mart)
+    Tx <- tx2gene %>%   dplyr::select(ensembl_transcript_id, ensembl_gene_id)
+    colnames(Tx) <- c("TXNAME", "GENEID")
+    }else{ print('please supply a valid species within the config.yml file')}
+    
+    # import Kallisto transcript counts into R using Tximport
+    Txi_gene <-  tximport(path, 
+                     type = "kallisto", 
+                     tx2gene = Tx, 
+                     txOut = FALSE, # TRUE outputs transcripts, FALSE outputs gene-level data
+                     countsFromAbundance = "lengthScaledTPM",
+                     ignoreTxVersion = TRUE)
+    # Write the counts to an object (used for metadata and clustering)
+    df_mRNA <- Txi_gene$counts %>% 
+            round() %>% 
+            data.frame()
+    colnames(df_mRNA) <- sample_table$Sample
+    
+    meta_data <- sample_table
+    rownames(meta_data) <- meta_data$Sample
+    
+  # if (file.exists(paste0('designs_kallisto/',design_files[1]))) {
+  #   for (i in design_files){
+  #   meta_data <- read.table(paste0('designs_kallisto/',i), sep=",", header = TRUE)
+  #   rownames(meta_data) <- meta_data$Sample
+  #   df_mRNA_tmp = df_mRNA[,rownames(meta_data)]
+  #   all(rownames(meta_data) %in% colnames(df_mRNA_tmp))
+  #   assign(paste("meta_data", i, sep = "."), meta_data)}}
+  #   else {
+  #     print("No design files were detected please add a file called design_<test>_<control>_<test>_<column>.csv. Please refer to documentation on github for more ifnormation")
+  #     }
+    
+  } else {
+  print("Please add path to the kallisto dir in the config.yml file as it seems to be missing")
+}
+} else{
+
+
+design_files <- list.files(path='designs_featurecounts/', pattern = "design_")
+if (file.exists("featurecounts.tsv.gz")) {
+  df_mRNA <- read.table(gzfile("featurecounts.tsv.gz"), sep = "\t", header = TRUE, row.names = 1)
+  colnames(df_mRNA) <- gsub(".", "-", x = colnames(df_mRNA), fixed = T)
+} else {
+  print("Please add featurecounts.tsv.gz into the project folder as it seems to be missing")
+}
+
+
+if (file.exists(paste0('designs_featurecounts/',design_files[1]))) {
+  for (i in design_files){
+  meta_data <- read.table(paste0('designs_featurecounts/',i), sep=",", header = TRUE) 
+  rownames(meta_data) <- meta_data$Sample
+  df_mRNA_tmp = df_mRNA[,rownames(meta_data)]
+  all(rownames(meta_data) %in% colnames(df_mRNA_tmp))
+  assign(paste("meta_data", i, sep = "."), meta_data)
+  }
+} else {
+    print("No design files were detected please add a file called design_<test>_<control>_<test>_<column>.csv. Please refer to documentation on github for more ifnormation")
+}
+
+}
+
+  write.table(df_mRNA %>% rownames_to_column("id"),
+              paste0("df_mRNA.tsv"),
+              col.name=TRUE,
+              sep="\t",
+              na = "NA",
+              row.names=FALSE,
+              quote=FALSE)
+  
+  
+  
+```
+
+
+
+```{r}
+
+```
+
+

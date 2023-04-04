@@ -1,0 +1,92 @@
+---
+title: "Differential expression analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Source R functions, message=FALSE, warning=FALSE, include=FALSE}
+
+source("R_functions/utils.R", local = knitr::knit_global())
+source("R_functions/read_data.R", local = knitr::knit_global())
+```
+
+
+# Top gene hits
+
+```{r Top genes, echo=FALSE, fig.height=10, fig.width=10, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+Annotate_genes_results(res = DeSeq2_return$res,
+                       title = Plot_title,
+                       control = Control,
+                       test = Test,
+                       stats = deseq2_stats_test
+)
+
+
+```
+
+
+# Dispersion Plot
+
+```{r Dispersion Plot, echo=FALSE, fig.height=8, fig.width=8, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+Dispersion_Plot(de_seq = DeSeq2_return$de_seq,
+                title = Plot_title,
+                ymin = 10^-9
+                
+  
+)
+
+
+
+```
+
+#MA Plots
+
+
+```{r MA PLots, echo=FALSE, fig.height=8, fig.width=8, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+MA_Plot(de_seq = DeSeq2_return$de_seq,
+        res = DeSeq2_return$res,
+        test = Test,
+        title = Plot_title
+        
+        
+  
+) 
+
+```
+
+
+# Volcano Plot
+
+```{r Volcano Plots, echo=FALSE, fig.height=9, fig.width=9, message=FALSE, warning=FALSE, paged.print=TRUE}
+
+##log2 fold change cut off for Volcano plot.
+FC_VP <- 1
+
+##pvalue cut off for Volcano plot.
+pvalue_VP <- 1e-8
+
+Volcano <- 
+  Volcano_Plots(de_seq = DeSeq2_return$de_seq, 
+              test = Test, 
+              res = DeSeq2_return$res, 
+              labels = TRUE,
+              title = Plot_title,
+              pval = pvalue_VP, 
+              label_list = NULL,
+              FC = FC_VP)
+
+Volcano
+#ggsave(paste0(plots_dir, Volcano$labels$title, "_", Volcano$labels$subtitle,"NFKB_Volcano_Plots.png"))
+
+
+
+```
+
+

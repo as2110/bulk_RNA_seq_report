@@ -1,0 +1,614 @@
+---
+title: "Enrichment Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+```{r Source R functions, message=FALSE, warning=FALSE, include=FALSE}
+
+source("R_functions/utils.R", local = knitr::knit_global())
+source("R_functions/read_data.R", local = knitr::knit_global())
+
+```
+
+
+
+
+## Co-expression analysis
+
+### WGCNA
+
+```{r wgcna, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+normalised_counts <- t(assay(DeSeq2_return$vsd))
+#normalised_counts <- assay(DeSeq2_return$vsd)[sigGenes, ] %>% t()
+powers <- c(c(1:10), seq(from = 12, to = 20, by = 2))
+sft <- pickSoftThreshold(normalised_counts,
+  dataIsExpr = TRUE,
+  corFnc = cor,
+  networkType = "signed",
+  powerVector = powers
+)
+
+
+# Choose the power parameter based on the scale-free topology fit index
+power <- sft$powerEstimate
+
+sft_df <- data.frame(sft$fitIndices) %>%
+  dplyr::mutate(model_fit = -sign(slope) * SFT.R.sq)
+
+
+colData <- colData(DeSeq2_return$vsd) %>% as.data.frame()
+
+ggplot(sft_df, aes(x = Power, y = model_fit, label = Power)) +
+  # Plot the points
+  geom_point() +
+  # We'll put the Power labels slightly above the data points
+  geom_text(nudge_y = 0.1) +
+  # We will plot what WGCNA recommends as an R^2 cutoff
+  geom_hline(yintercept = 0.80, col = "red") +
+  # Just in case our values are low, we want to make sure we can still see the 0.80 level
+  ylim(c(min(sft_df$model_fit), 1.05)) +
+  # We can add more sensible labels for our axis
+  xlab("Soft Threshold (power)") +
+  ylab("Scale Free Topology Model Fit, signed R^2") +
+  ggtitle("Scale independence") +
+  # This adds some nicer aesthetics to our plot
+  theme_classic()
+
+
+
+
+
+
+
+bwnet <- blockwiseModules(normalised_counts,
+  maxBlockSize = 5000, # What size chunks (how many genes) the calculations should be run in
+  TOMType = "signed", # topological overlap matrix
+  power = 7, # soft threshold for network construction
+  numericLabels = TRUE, # Let's use numbers instead of colors for module labels
+  randomSeed = 1234, # there's some randomness associated with this calculation
+  # so we should set a seed
+)
+
+
+module_eigengenes <- bwnet$MEs
+
+
+# Create the design matrix from the `Treatment` variable
+des_mat <- model.matrix(~ colData[[deseq2_design_condition]])
+# lmFit() needs a transposed version of the matrix
+fit <- limma::lmFit(t(module_eigengenes), design = des_mat)
+
+# Apply empirical Bayes to smooth standard errors
+fit <- limma::eBayes(fit)
+
+# Apply multiple testing correction and obtain stats
+stats_df <- limma::topTable(fit, number = ncol(module_eigengenes)) %>%
+  tibble::rownames_to_column("module")
+
+### visualising one module
+
+module_df <- module_eigengenes %>%
+  tibble::rownames_to_column("SampleName") %>%
+  # Here we are performing an inner join with a subset of metadata
+  dplyr::inner_join(colData(DeSeq2_return$vsd) %>% as.data.frame() %>%
+    dplyr::select(SampleName, deseq2_design_condition)
+  )
+
+top_module <- 
+  ggplot(
+  module_df,
+  aes(
+    x = .data[[deseq2_design_condition]],
+    y = .data[[stats_df %>% dplyr::slice(1) %>% pull(module)]],
+    color = Treatment
+  )
+) +
+  # a boxplot with outlier points hidden (they will be in the sina plot)
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  # A sina plot to show all of the individual data points
+  ggforce::geom_sina(maxwidth = 0.3) +
+  theme_classic()
+## NO SIGNIFICANT MODULES SEEN
+
+
+gene_module_key <- tibble::enframe(bwnet$colors, name = "gene", value = "module") %>%
+  # Let's add the `ME` part so its more clear what these numbers are and it matches elsewhere
+  dplyr::mutate(module = paste0("ME", module)) %>% 
+  filter(module == stats_df %>% dplyr::slice(1) %>% pull(module)) %>%
+  mutate(gene = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = gene,
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ))
+
+top_module
+
+```
+
+
+### CEMiTool
+```{r CEMiTool, eval=FALSE, include=FALSE}
+
+#BiocManager::install("CEMiTool")
+invisible(gc())
+
+
+# Use VST values as input to CEMiTool
+cemitool_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") 
+
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  dplyr::select(deseq2_design_condition) %>%
+  rownames_to_column("SampleName")
+
+gmt_fname <- system.file("extdata", "pathways.gmt", package = "CEMiTool")
+gmt_in <- read_gmt(gmt_fname)
+
+int_df <- read.delim(system.file("extdata", "interactions.tsv", package = "CEMiTool"))
+
+# Run CEMiTool
+cemitool_results <- cemitool(cemitool_input, 
+                             colData, 
+                             apply_vst = FALSE, 
+                             gmt = gmt_in, 
+                             interactions = int_df, 
+                             verbose = TRUE, 
+                             force_beta = TRUE, 
+                             class_column = deseq2_design_condition,
+                             network_type = "signed")
+
+
+invisible(gc())
+generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report"))
+
+
+
+
+```
+
+[CEMiTool report](`r list.files("*.html", path = file.path(getwd(), results_dir, "CEMItool_report"), full.names = TRUE)`)
+
+
+### BioNERO Co-expression
+
+```{r bioNERO wgcna, echo=FALSE}
+invisible(gc())
+# this is not working well
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::select(deseq2_design_condition) 
+
+bionero_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") %>%
+  as.matrix()
+
+final_exp <-
+SummarizedExperiment::SummarizedExperiment(
+  assays = bionero_input,
+  rowData = rownames(bionero_input),
+  colData = colData
+) %>%
+  exp_preprocess(
+    min_exp = 1, 
+    method = "median",
+    variance_filter = TRUE,
+    #n = 1500,
+    percentile=0.4, 
+    Zk_filtering = FALSE
+    #vstransform = TRUE
+    
+)
+
+invisible(gc())
+# #Gene coexpression network inference
+#
+sft <- SFT_fit(final_exp, net_type = "signed hybrid", cor_method = "pearson")
+#
+
+tryCatch(
+  {bioNERO_net <- exp2gcn(
+     final_exp,
+   net_type = "signed",
+     SFTpower = sft$power,
+     cor_method = "spearman"
+ )
+
+MEtrait <- module_trait_cor(
+    exp = final_exp, MEs = bioNERO_net$MEs, cor_method = "pearson"
+)
+
+module_enrichment <-
+  module_enrichment(
+    net = bioNERO_net,
+    background_genes = rownames(bioNERO_net),
+    annotation = dplyr::select(gmt_in, gene, term)
+  )
+
+plot_ngenes_per_module(bioNERO_net)
+MEtrait
+    },
+    error = function(e){ 
+        message("Unable to run co-expression anaysis")
+    } )
+
+
+```
+
+### GWENA
+
+```{r GWENA, echo=FALSE, fig.height=7, fig.width=7, message=FALSE, warning=FALSE}
+#BiocManager::install("GWENA")
+# Load necessary packages
+invisible(gc())
+
+
+## prep input for GWENA - need SE object at least 2 columns as colDATA
+
+GWENA_input <-
+SummarizedExperiment::SummarizedExperiment(
+  assays = assay(DeSeq2_return$vsd),
+  rowData = rowData(DeSeq2_return$vsd),
+  colData = SummarizedExperiment::colData(DeSeq2_return$vsd)
+) %>% 
+  #filter_RNA_seq(min_count = 5, method = "mean") %>%
+  filter_low_var(pct = 0.3, type = "median")
+
+
+GWENA_net <- build_net(GWENA_input, 
+                       cor_func = "spearman",
+                       network_type = "signed",
+                       n_threads = 2)
+
+# Power selected :
+GWENA_net$metadata$power
+#> [1] 8
+
+# Fit of the power law to data ($R^2$) :
+fit_power_table <- GWENA_net$metadata$fit_power_table
+fit_power_table[fit_power_table$Power %in% 1:20, "SFT.R.sq"]
+
+
+GWENA_modules <- detect_modules(GWENA_input, 
+                            GWENA_net$network, 
+                            detailled_result = TRUE,
+                            merge_threshold = 0.25)
+
+
+GWENA_modules_gene_count_plot <-
+  ggplot2::ggplot(data.frame(GWENA_modules$modules %>% stack), 
+                ggplot2::aes(x = ind)) + ggplot2::stat_count() +
+  ggplot2::ylab("Number of genes") +
+  ggplot2::xlab("Module")
+
+GWENA_enrichment <- bio_enrich(GWENA_modules$modules)
+GWENA_encrichment_plot <- plot_enrichment(GWENA_enrichment)
+
+
+
+#plot_expression_profiles(GWENA_input, GWENA_modules$modules)
+
+
+# With data.frame/matrix
+phenotype_association <- associate_phenotype(
+  eigengenes =  (GWENA_modules$modules_eigengenes %>% rownames_to_column("name")), 
+  phenotypes =  SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+    as.data.frame() %>% dplyr::select(3) %>%  rownames_to_column("name") %>%
+    as.matrix(),
+  id_col = "name")
+
+
+
+GWENA_encrichment_plot
+
+plot_modules_phenotype(phenotype_association)
+
+# GWENA_encrichment_plot
+# 
+# 
+# DEGs <- results_annotated %>% dplyr::filter(
+#   abs(log2FoldChange) > 1,
+#   padj < 0.05,
+#   ensembl_gene_id %in% GWENA_modules$modules$`2`
+# ) %>% pull(ensembl_gene_id)
+# 
+# GWENA_modules$modules$`2` 
+
+```
+
+
+## GRN methods
+
+```{r GNET2, eval=FALSE, fig.height=10, fig.width=10, include=FALSE}
+
+#BiocManager::install("GNET2")
+#install_github("chrischen1/GNET2")
+#unload("GNET2")
+library(GNET2)
+TF_list <- read.csv("TFDB.csv") %>%
+  dplyr::filter(Is.TF. == "Yes")
+TF_list <- TF_list$Ensembl.ID
+init_group_num = 8
+init_method = 'kmeans'
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>% as.data.frame() %>% dplyr::select(3) #%>% column_to_rownames()
+
+
+gnet_input <-
+SummarizedExperiment::SummarizedExperiment(
+  assays = assay(DeSeq2_return$vsd),
+  rowData = rowData(DeSeq2_return$vsd),
+  colData = colData
+) 
+
+
+gnet_result <- gnet2(input = gnet_input,
+                    reg_names =  TF_list,
+                    init_method = init_method,
+                    init_group_num = init_group_num,
+                    heuristic = TRUE)
+
+
+exp_labels <- c(rep("WT", 3), rep("Carfilzomib", 3))
+plot_gene_group(gnet_result,group_idx = 1,plot_leaf_labels = T)
+
+plot_gene_group(gnet_result,group_idx = 1,group_labels = exp_labels)
+
+
+
+exp_labels_factor = as.numeric(factor(exp_labels))
+
+print('Similarity to categorical experimental conditions of each module:')
+
+print(similarity_score(gnet_result,exp_labels_factor))
+
+
+plot_tree(gnet_result,group_idx = 1)
+
+
+group_index = 1
+print('Regulators in module 1:')
+
+print(gnet_result$regulators[[group_index]])
+
+print('Targets in module 1:')
+
+print(gnet_result$target_genes[[group_index]])
+
+mat <- extract_edges(gnet_result)
+
+print(dim(mat))
+```
+
+```{r rtn, eval=FALSE, include=FALSE}
+#BiocManager::install("RTN")
+library(RTN)
+
+TF_list <- read.csv("TFDB.csv") %>%
+  dplyr::filter(Is.TF. == "Yes")
+TF_list <- TF_list$Ensembl.ID
+#TF_list <- TF_list$HGNC.symbol
+init_group_num = 8
+init_method = 'boosting'
+
+#colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>% as.data.frame() %>% dplyr::select(-1, -4) #%>% column_to_rownames()
+
+
+rtn_input <-
+SummarizedExperiment::SummarizedExperiment(
+  assays = assay(DeSeq2_return$vsd),
+  rowData = rowData(DeSeq2_return$vsd),
+  colData = colData(DeSeq2_return$vsd)
+) 
+
+rowAnnotation <- 
+  results_annotated %>% dplyr::select(ID = ensembl_gene_id,
+                                    GENEID = ensembl_gene_id,
+                                    SYMBOL = hgnc_symbol)
+
+colAnnotation <- colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::select(1, 3)
+
+rtni <- tni.constructor(expData = assay(DeSeq2_return$vsd),
+                        rowAnnotation = rowAnnotation,
+                        colAnnotation = colAnnotation,
+                        regulatoryElements = TF_list)
+
+rtni %<>% 
+  tni.permutation(nPermutations = 100) %<>% 
+  tni.bootstrap() %<>% 
+  tni.dpi.filter()
+
+#rtni <- tni.dpi.filter(rtni)
+
+tni.regulon.summary(rtni)
+
+
+
+tnaData <- list(phenotype = "", hits = "", phenoIDs = "")
+tnaData$phenotype <- c(results_annotated$log2FoldChange)
+names(tnaData$phenotype) <- c(results_annotated$ensembl_gene_id)
+tnaData$hits <- results_annotated %>% 
+  dplyr::filter(abs(log2FoldChange) > 1, padj < 0.05) %>% pull(ensembl_gene_id)
+tnaData$phenoIDs <- results_annotated %>% dplyr::select(ensembl_gene_id, hgnc_symbol) %>% as.matrix()
+
+
+
+
+rtna <- tni2tna.preprocess(object = rtni, 
+                           phenotype = tnaData$phenotype, 
+                           hits = tnaData$hits, 
+                           phenoIDs = tnaData$phenoIDs)
+
+
+
+```
+
+### BioNERO
+```{r bionero grn, echo=FALSE, fig.height=10, fig.width=10}
+invisible(gc())
+
+TF_list <- read.csv("TFDB.csv") %>%
+  dplyr::filter(Is.TF. == "Yes")
+TF_list <- TF_list$HGNC.symbol
+
+bionero_grn <- exp2grn(
+    exp = final_exp, 
+    regulators = TF_list, 
+    nTrees = 10
+)
+
+bionero_grn_list <- grn_combined(final_exp, regulators = TF_list, nTrees = 10)
+
+hubs <- get_hubs_grn(bionero_grn)
+
+
+plot_grn(bionero_grn, interactive = TRUE, dim_interactive = c(500,500))
+
+
+Volcano_Plots(de_seq = DeSeq2_return$de_seq, 
+              test = Test, 
+              res = DeSeq2_return$res, 
+              labels = TRUE,
+              title = Plot_title,
+              pval = 1e-5, 
+              label_list = hubs$Gene,
+              FC = 1)
+
+#ggsave(paste0(plots_dir, Volcano$labels$title, "_", Volcano$labels$subtitle,"BioNERO__Volcano_Plots.png"))
+
+```
+
+
+```{r top_hubs, message=FALSE, warning=FALSE}
+z <- chea3_results_downregulated$`Integrated--meanRank`$TF %>% head(50)
+y <- chea3_results_upregulated$`Integrated--meanRank`$TF %>% head(50)
+hubs %>% filter(Gene %in% c(z, y)) %>% rmarkdown::paged_table(options = list(rows.print = 10)) %>% kbl(col.names = c("Hub Gene", "Degrees of connections"),
+                                        caption = paste0(Plot_title, " ", Control, "_vs_", Test, " Top Hub Gene TFs"),
+                                        digits = 2,
+                                        escape = F,
+                                        align = "c"
+  ) %>% kableExtra::kable_paper()
+```
+
+
+### Corto
+```{r corto, echo=FALSE}
+
+#install.packages("corto")
+
+Corto_input <- 
+  #inmat %>%
+  assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") %>% 
+  as.matrix()
+
+# load(system.file("extdata","centroids.rda",package="corto"))
+# 
+# centroids <- mapIds(
+#         EnsDb.Hsapiens.v86,
+#         keys = centroids,
+#         column = "GENEID",
+#         keytype = "SYMBOL"
+#       )
+
+TF_list <- read.csv("TFDB.csv") %>%
+  dplyr::filter(Is.TF. == "Yes")
+TF_list <- TF_list$HGNC.symbol
+
+
+invisible(gc())
+corto_regulon <- corto(Corto_input,
+                  centroids=TF_list,
+                  nbootstraps=10,
+                  p=1e-7,
+                  nthreads=2)
+
+
+
+corto_regulon[1:10]
+
+```
+
+### Kboost - tbd
+```{r kboost, eval=FALSE, include=FALSE}
+library("KBoost")
+
+kboost_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") %>% 
+  as.matrix() %>% t()
+  
+kboost_grn <- KBoost_human_symbol(kboost_input)
+
+```

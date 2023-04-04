@@ -1,0 +1,8 @@
+---
+title: "RNA Seq Analysis"
+---
+
+This report provides an analysis of RNA-seq data, producing a differential expression analysis and pathway analysis of enriched genes. 
+
+Methods and citations:
+tbd

@@ -40,3 +40,6 @@ vignettes/*.pdf
 
 /genes.tsv
 
+/kallisto_input/*
+
+!/**/.gitkeep
