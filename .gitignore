@@ -43,6 +43,7 @@ vignettes/*.pdf
 /kallisto_input/*
 /results/*
 /raw_data/*
+/meta_data/*
 /design_files/*
-
+/RNA_seq_reports/*
 !/**/.gitkeep

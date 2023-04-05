@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 source("R_functions/utils.R", local = knitr::knit_global())
 source("R_functions/read_data.R", local = knitr::knit_global())
+
 ```
 
 

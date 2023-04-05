@@ -86,10 +86,10 @@ params <- read_yaml("config.yml")
 
 if(params$kallisto){
   print("kallisto input detected")
-  yml_site_opts(output_dir = file.path("RNA_seq_reports/kallisto"))
+  #yml_site_opts(output_dir = file.path("RNA_seq_reports/kallisto"))
 
   #design_files <- list.files(path='designs_kallisto/', pattern = "design_")
-  design_dir <- "design_files/design_kalliso"
+  design_dir <- "./design_files/design_kallisto"
 
   # load in the sample metadata file
   sample_meta_data <<- list.files(pattern = "*.tsv", path = design_dir, full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
