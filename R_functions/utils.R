@@ -18,7 +18,9 @@ library(kableExtra)
 library(RColorBrewer)
 
 ##differential expression
+
 library(yaml)
+library(ymlthis)
 library(tximport)
 library(DESeq2)
 library(apeglm)
@@ -84,11 +86,13 @@ params <- read_yaml("config.yml")
 
 if(params$kallisto){
   print("kallisto input detected")
+  yml_site_opts(output_dir = file.path("RNA_seq_reports/kallisto"))
 
   #design_files <- list.files(path='designs_kallisto/', pattern = "design_")
+  design_dir <- "design_files/design_kalliso"
 
   # load in the sample metadata file
-  sample_meta_data <- list.files(pattern = "*.tsv", path = "./design_files", full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
+  sample_meta_data <<- list.files(pattern = "*.tsv", path = design_dir, full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
   sample_table <- read.delim(sample_meta_data) %>% dplyr::rename("Sample" = 1)
 
 
@@ -174,14 +178,20 @@ if(params$kallisto){
     #     }
 
     write.table(df_mRNA %>% rownames_to_column("id"),
-                paste0("df_mRNA.tsv"),
+                paste0("genes.tsv"),
                 col.name=TRUE,
                 sep="\t",
                 na = "NA",
                 row.names=FALSE,
                 quote=FALSE)
     }
-  }
+} else {
+  design_dir <- "design_files/design_featurecounts"
+  sample_meta_data <<-
+    list.files(pattern = "*.tsv",
+               path = design_dir,
+               full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("featurecounts")
+}
 }
 ## prep files #####
 
