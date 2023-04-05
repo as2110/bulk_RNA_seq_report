@@ -88,7 +88,7 @@ if(params$kallisto){
   #design_files <- list.files(path='designs_kallisto/', pattern = "design_")
 
   # load in the sample metadata file
-  sample_meta_data <- list.files(pattern = "*.tsv", path= ".", full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
+  sample_meta_data <- list.files(pattern = "*.tsv", path = "./design_files", full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
   sample_table <- read.delim(sample_meta_data) %>% dplyr::rename("Sample" = 1)
 
 

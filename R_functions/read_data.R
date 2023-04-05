@@ -5,7 +5,7 @@ check_kallisto()
 raw_counts <- "df_mRNA.tsv"
 
 ##filepath to sample meta data - minimum 2 columns where column 1 = colheads of gene counts. ncol in gene counts == nrow in sample meta data.
-sample_meta_data <- list.files(pattern = "*.tsv", path= ".", full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
+sample_meta_data <- list.files(pattern = "*.tsv", path= "./design_files", full.names = TRUE) %>% stringr::str_subset("design") %>% stringr::str_subset("kallisto")
 
 ##column heading for design model for deseq2
 deseq2_design_condition <- stringr::str_split(file_path_sans_ext(basename(sample_meta_data)), pattern = "_")[[1]][5]
