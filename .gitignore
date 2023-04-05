@@ -41,5 +41,8 @@ vignettes/*.pdf
 /genes.tsv
 
 /kallisto_input/*
+/results/*
+/raw_data/*
+/meta_data/*
 
 !/**/.gitkeep
