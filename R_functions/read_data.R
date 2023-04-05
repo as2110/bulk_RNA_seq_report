@@ -1,5 +1,5 @@
 ##Deseq2 inputs:
-
+check_kallisto()
 ##filepath to gene counts tsv/tsv.gz
 
 raw_counts <- "df_mRNA.tsv"
