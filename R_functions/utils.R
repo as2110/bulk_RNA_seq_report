@@ -205,8 +205,8 @@ prepare_files <- function(raw_counts, sample_meta_data){
 
   ifelse(!dir.exists("raw_data"), dir.create("raw_data"), FALSE)
   ifelse(!dir.exists("meta_data"), dir.create("meta_data"), FALSE)
-  file.copy(from = raw_counts, to = "raw_data")
-  file.copy(from = sample_meta_data, to = "meta_data")
+  file.copy(from = raw_counts, to = "raw_data", overwrite = TRUE)
+  file.copy(from = sample_meta_data, to = "meta_data", TRUE)
 
   raw_counts <<- paste0("raw_data/",path_file(raw_counts))
   sample_meta_data <<- paste0("meta_data/",path_file(sample_meta_data))
