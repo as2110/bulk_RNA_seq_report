@@ -166,7 +166,38 @@ for (i in 1:4) {
 
 ```{r ananlysis_Pi, fig.height=7, fig.width=7, message=FALSE, warning=FALSE}
 
+print("Upregulated genes")
+
 xgr_data <- results_annotated %>% dplyr::filter(padj < 0.05, abs(log2FoldChange) > 1)
+
+
+data <- xgr_data %>% 
+  dplyr::filter(!is.na(hgnc_symbol) & !duplicated(hgnc_symbol))%>%
+  dplyr::pull(hgnc_symbol)
+background <- results_annotated %>% 
+  dplyr::filter(!is.na(hgnc_symbol) & !duplicated(hgnc_symbol)) %>%
+  dplyr::pull(hgnc_symbol)
+ontology <- c("KEGG" = "MsigdbC2KEGG", "Reactome" = "MsigdbC2REACTOME", "DO" = "DO")
+
+
+eTerm <- xEnricherGenes(data=data, background=background, ontology= ontology[2])
+
+eTerm_concise <- xEnrichConciser(eTerm)
+
+
+bp <- xEnrichBarplot(eTerm, top_num=10, displayBy="adjp")
+
+# bp <- ggpar(bp, 
+#             font.x = 2,
+#             xlab = )
+
+bp <- bp + scale_x_discrete(labels = function(x) str_wrap(x, width = 40)) 
+bp
+
+
+print("DOWN regulated genes")
+
+xgr_data <- results_annotated %>% dplyr::filter(padj < 0.05, abs(log2FoldChange) < -1)
 
 
 data <- xgr_data %>% 
@@ -230,7 +261,10 @@ xgr_data_down <- results_annotated %>%
 xgr_ranks <- xgr_data_up %>% 
   dplyr::filter(!is.na(hgnc_symbol), !duplicated(hgnc_symbol)) %>%
   dplyr::select(hgnc_symbol, stat) %>% mutate(rank = dense_rank(-stat)) %>% dplyr::select(-stat) %>% mutate(rank = rank/nrow(.))
-  
+
+xgr_ranks <- xgr_data_down %>% 
+  dplyr::filter(!is.na(hgnc_symbol), !duplicated(hgnc_symbol)) %>%
+  dplyr::select(hgnc_symbol, stat) %>% mutate(rank = dense_rank(-stat)) %>% dplyr::select(-stat) %>% mutate(rank = rank/nrow(.))  
   
   
 pNode <- xPierGenes(xgr_ranks, network = "STRING_high", restart=0.7)
@@ -497,7 +531,7 @@ decoupleR_vis_TF()
 
 
 
-```{r decoupleR_PROGENy, eval=FALSE, include=FALSE}
+```{r decoupleR_PROGENy, echo=FALSE, message=FALSE, warning=FALSE}
 #BiocManager::install("OmnipathR")
 #BiocManager::install("remotes")
 #BiocManager::install("dorothea")
@@ -575,7 +609,7 @@ pheatmap(sample_acts_mat, border_color = NA, color=my_color, breaks = my_breaks)
 
 
 
-```{r decoupleR_PROGENy_Degs, eval=FALSE, include=FALSE}
+```{r decoupleR_PROGENy_Degs, echo=FALSE, message=FALSE, warning=FALSE}
 # Extract t-values per gene
 
 decoupleR_deg <- results_annotated %>% 
@@ -704,12 +738,18 @@ pval_mat_UP <- getCMstats( CM_list_UP ) #generates list of p-values and OR from 
 CM_list_DOWN <- contingency_matrix( Genes.Downreg, Genes.Control ) #generates list of contingency tables, one per dataset
 pval_mat_DOWN <- getCMstats( CM_list_DOWN ) #generates list of p-values and OR from association test
 
-
+print("Upregulated TFs")
 TF_ranking <- rankTFs( pval_mat_UP, rankMethod = "gsea", makePlot = TRUE )
 
 TF_ranking <- rankTFs( pval_mat_UP, rankMethod = "wilcoxon", makePlot = TRUE )
 TF_ranking[[ "TFranking_plot" ]]
 
+
+TF_ranking <- rankTFs( pval_mat_DOWN, rankMethod = "gsea", makePlot = TRUE )
+
+print("Downregulated TFs")
+TF_ranking <- rankTFs( pval_mat_DOWN, rankMethod = "wilcoxon", makePlot = TRUE )
+TF_ranking[[ "TFranking_plot" ]]
 
 
 HS_HALLMARK <- msigdbr(species = "Homo sapiens", category = "H")
@@ -717,6 +757,8 @@ HS_HALLMARK <- split(x = HS_HALLMARK$gene_symbol, f = HS_HALLMARK$gs_name)
 HS_CP_REACTOME <- msigdbr(species = "Homo sapiens", category = "C2", subcategory = "CP:REACTOME")
 HS_CP_REACTOME <- split(x = HS_CP_REACTOME$gene_symbol, f = HS_CP_REACTOME$gs_name)
 
+
+print("NFkB pathways related TFs")
 specialTF <-
   dorothea_df %>% 
   filter(source %in% HS_CP_REACTOME$REACTOME_NF_KB_IS_ACTIVATED_AND_SIGNALS_SURVIVAL
@@ -731,11 +773,17 @@ specialTF <-
 names(specialTF) <- specialTF
 
 
-
+print("Downregulated")
 plot_CM( pval_mat_DOWN, 
          specialTF = specialTF, 
          TF_colors = c(rep("red", length(specialTF))) ) #plot p-values against ORs
 
+
+print("Upregulated")
+
+plot_CM( pval_mat_UP, 
+         specialTF = specialTF, 
+         TF_colors = c(rep("red", length(specialTF))) ) #plot p-values against ORs
 
 
 ```

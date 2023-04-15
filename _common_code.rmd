@@ -114,10 +114,6 @@ mGSEA_res <- as.data.frame(enrichment_scores) %>%
 
 
 
-
-
-
-
 ```{r}
 
 #BioCor
@@ -176,8 +172,134 @@ enrichment_chart(result_df = pathfindR_output,
 
 
 
+```{r xgr, fig.height=10, fig.width=10}
+library(XGR)
+# Specify the location of built-in data
+RData.location <- "http://galahad.well.ox.ac.uk/bigdata"
+# Load differential expression analysis results
+
+background <- results_annotated$hgnc_symbol
+data <- results_annotated %>% 
+  filter(log2FoldChange < -1, padj < 0.05) %>%
+  pull(hgnc_symbol)
+
+eTerm_Bort_WT <- xEnricherGenes(data=data, background=background, ontology="DO", ontology.algorithm="none", RData.location=RData.location)
 
 
+xEnrichViewer(eTerm_Bort_WT, 10)
+
+bp_Bort_WT <- xEnrichBarplot(eTerm_Bort_WT, top_num="auto", displayBy="fdr")
+bp_Bort_WT
+
+xEnrichDAGplot(eTerm_Bort_WT, top_num="auto", displayBy="fdr", node.info=c("both"), graph.node.attrs=list(fontsize=30), newpage=F)
+
+
+eTerm_Bort_WT_lea <- xEnricherGenes(data=data, background=background, ontology="DO", ontology.algorithm="lea", RData.location=RData.location)
+xEnrichViewer(eTerm_Bort_WT_lea, 10)
+
+
+
+list_eTerm <- list(eTerm_Bort_WT, eTerm_Bort_WT_lea)
+names(list_eTerm) <- c('DO Tree (-)', 'DO Tree (+)')
+bp_Bort_WT_DO <- xEnrichCompare(list_eTerm, displayBy="fc")
+bp_Bort_WT_DO + theme(axis.text.y=element_text(size=10))
+```
+
+
+```{r}
+TFDB <- read.csv("TFDB.csv") %>% filter(Is.TF. == "Yes")
+
+tfd <- read.delim("C:\\Users\\asrinivasan\\Downloads\\TF_link.tsv.gz")
+
+tfd_dorothea <- dorothea::dorothea_hs
+unique_TF_from_TF_link <- tfd %>% dplyr::select(Name.TF) %>% distinct() %>% pull()
+unique_TF_from_dorothea <- tfd_dorothea %>% 
+  filter(tf %in% TFDB$HGNC.symbol)
+
+tfd %>% filter(!Name.TF %in% TFDB$HGNC.symbol) %>% pull(Name.TF) %>% unique() %>% length()
+
+
+hTFtarget <- read.delim("C:\\Users\\asrinivasan\\Downloads\\hTFtarget.txt")
+
+unique_TF_from_hTFtarget <- hTFtarget %>% dplyr::select(TF) %>% distinct() 
+
+unique_TF_from_hTFtarget %>% filter(TF %in% unique_TF_from_TF_link) %>% nrow()
+
+gmt_fname <- system.file("extdata", "pathways.gmt", package = "CEMiTool")
+gmt_in <- read_gmt(gmt_fname)
+
+int_df <- read.delim(system.file("extdata", "interactions.tsv", package = "CEMiTool"))
+
+int_df$gene2symbol %>% unique() %>% length()
+
+```
+
+
+### CEMiTool
+```{r CEMiTool, eval=FALSE, include=FALSE}
+start <- Sys.time()
+#BiocManager::install("CEMiTool")
+invisible(gc())
+
+
+# Use VST values as input to CEMiTool
+cemitool_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") 
+
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  dplyr::select(deseq2_design_condition) %>%
+  rownames_to_column("SampleName")
+
+gmt_fname <- system.file("extdata", "pathways.gmt", package = "CEMiTool")
+gmt_in <- read_gmt(gmt_fname)
+
+int_df <- read.delim(system.file("extdata", "interactions.tsv", package = "CEMiTool"))
+
+# Run CEMiTool
+cemitool_results <- cemitool(cemitool_input, 
+                             colData, 
+                             apply_vst = FALSE, 
+                             gmt = gmt_in, 
+                             interactions = int_df, 
+                             verbose = TRUE, 
+                             force_beta = TRUE, 
+                             class_column = deseq2_design_condition,
+                             network_type = "signed")
+
+
+invisible(gc())
+generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report"))
+
+
+print(Sys.time() - start)
+
+```
+
+
+```{r co_Reg_net}
+if (!require("CoRegNet")) {BiocManager::install("CoRegNet")}
+library(CoRegNet)
+data(CIT_BLCA_EXP,HumanTF,CIT_BLCA_Subgroup)
+grn = hLICORN(cemitool_input, TFlist=HumanTF)
+
+```
 
 
 
@@ -384,7 +506,11 @@ if (file.exists(paste0('designs_featurecounts/',design_files[1]))) {
 
 
 ```{r}
+library(DIANE)
 
+DIANE::run_app()
 ```
+
+
 
 

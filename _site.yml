@@ -1,5 +1,5 @@
 name: "rna-seq-analysis"
-output_dir: "RNA_seq_reports/AMO1"
+output_dir: "RNA_seq_reports/AMO1_Car"
 navbar:
   title: "DeSeq2 Report"
   left:

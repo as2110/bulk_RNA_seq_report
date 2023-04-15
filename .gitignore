@@ -39,7 +39,7 @@ vignettes/*.pdf
 .Renviron
 
 /genes.tsv
-
+/omnipathr-log/*
 /kallisto_input/*
 /results/*
 /raw_data/*
