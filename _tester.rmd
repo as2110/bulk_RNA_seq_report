@@ -1,0 +1,580 @@
+---
+title: "Untitled"
+author: "Anand Srinivasan"
+date: "19/04/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r tigress}
+library(tigress)
+gc()
+genenames <- rownames(ecoli$exp)
+tfindices <- sort(unique(ecoli$reg[,1]))
+tfnames <- genenames[tfindices]
+ntf <- length(tfindices)
+ntf
+targetindices <- sort(unique(ecoli$reg[,2]))
+targetnames <- genenames[targetindices]
+ntarget <- length(targetindices)
+ntarget
+
+nstepsLARS = 20
+edgepred <- tigress(t(ecoli$exp), tflist=tfnames, targetlist=targetnames, nstepsLARS = nstepsLARS)
+
+
+edgepred[[2]] %>% View()
+```
+
+
+
+```{r modifier}
+#BiocManager::install("MODA")
+#devtools::install_git(url = "https://gitlab.com/Gustafsson-lab/MODifieR.git", quiet=FALSE)
+
+library("MODifieR")
+
+assay(DeSeq2_return$dds) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   dplyr::mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "ENTREZID"),
+      .before=1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>% column_to_rownames("hgnc_symbol") %>%
+  as.matrix()
+
+
+MODifieR_input <- assay(DeSeq2_return$dds) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   dplyr::mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"),
+      .before=1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>% 
+  column_to_rownames("hgnc_symbol") %>%
+  as.matrix()
+
+MODifieR_input_rna <- create_input_rnaseq(count_matrix = MODifieR_input, 
+                                          group1_indici = 1:3, 
+                                          group2_indici = 4:6, 
+                                          group1_label = Control, 
+                                          group2_label = Test,
+                                          use_adjusted = T, 
+                                          normalize_quantiles = TRUE)
+ppi_network2 <- ppi_network %>% 
+  dplyr::mutate(
+      entrez1 = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = entrez1,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "ENTREZID",
+        column = "SYMBOL"),
+      .before=1
+    ) %>% #drop_na() %>%
+  dplyr::mutate(
+      entrez2 = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = entrez2,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "ENTREZID",
+        column = "SYMBOL"),
+      .before=1
+    ) %>% drop_na()
+
+gc()
+wgnca_module <- wgcna(MODifieR_input = MODifieR_input_rna,
+                      group_of_interest = 2)
+
+wgnca_module2 <- wgcna_adjust_significance(pval_cutoff = 0.1, 
+                                          wgcna_module = wgnca_module,
+                                          use_unadjusted = FALSE)
+wgnca_module3 <- wgcna_split_module_by_color(wgcna_module = wgnca_module2)
+
+
+gc()
+diffcoex_module <- diffcoex(MODifieR_input = MODifieR_input_rna)
+gc()
+
+moda_module <- moda(MODifieR_input = MODifieR_input_rna, 
+                    group_of_interest = 2)
+
+gc()
+correlation_clique_module <- correlation_clique(MODifieR_input = MODifieR_input_rna, 
+                                                #ppi_network = ppi_network, 
+                                                iteration = 2)
+
+ppi_network3 <- dorothea_df %>% select(source, target, weight) %>% distinct()
+
+
+ppi_network2$entrez1 %>% unique() %>% length()
+
+	
+
+```
+
+
+```{r csdR}
+library(csdR)
+csdR_input <- assay(DeSeq2_return$dds) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   dplyr::mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"),
+      .before=1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>% 
+  column_to_rownames("hgnc_symbol") %>%
+  as.matrix()
+
+
+
+
+csd_results <- run_csd(
+    x_1 = csdR_input[, 4:6] %>% t() , x_2 = csdR_input[, 1:3] %>% t() ,
+    n_it = 10, nThreads = 2L, verbose = TRUE
+)
+pairs_to_pick <- 100L
+c_filter <- partial_argsort(csd_results$cVal, pairs_to_pick)
+c_frame <- csd_results[c_filter, ]
+s_filter <- partial_argsort(csd_results$sVal, pairs_to_pick)
+s_frame <- csd_results[s_filter, ]
+d_filter <- partial_argsort(csd_results$dVal, pairs_to_pick)
+d_frame <- csd_results[d_filter, ]
+
+csd_filter <- c_filter %>%
+    union(s_filter) %>%
+    union(d_filter)
+csd_frame <- csd_results[csd_filter, ]
+
+
+c_network <- graph_from_data_frame(c_frame, directed = FALSE)
+s_network <- graph_from_data_frame(s_frame, directed = FALSE)
+d_network <- graph_from_data_frame(d_frame, directed = FALSE)
+E(c_network)$edge_type <- "C"
+E(s_network)$edge_type <- "S"
+E(d_network)$edge_type <- "D"
+combined_network <- igraph::union(c_network, s_network, d_network)
+# Auxillary function for combining
+# the attributes of the three networks in a proper way
+join_attributes <- function(graph, attribute) {
+    ifelse(
+        test = is.na(edge_attr(graph, glue("{attribute}_1"))),
+        yes = ifelse(
+            test = is.na(edge_attr(graph, glue("{attribute}_2"))),
+            yes = edge_attr(graph, glue("{attribute}_3")),
+            no = edge_attr(graph, glue("{attribute}_2"))
+        ),
+        no = edge_attr(graph, glue("{attribute}_1"))
+    )
+}
+
+library(glue)
+E(combined_network)$edge_type <- join_attributes(combined_network, "edge_type")
+layout <- layout_nicely(combined_network)
+E(combined_network)$color <- recode(E(combined_network)$edge_type,
+    C = "darkblue", S = "green", D = "darkred"
+)
+plot(combined_network, layout = layout,
+    vertex.size = 3, edge.width = 2, vertex.label.cex = 0.001)
+
+gc()
+
+
+
+
+```
+
+
+
+```{r dcanr}
+#BiocManager::install("dcanr")
+library(dcanr)
+#load data
+data(sim102)
+#get available conditions
+getConditionNames(sim102)
+simdata <- getSimData(sim102, cond.name = 'UME6', full = FALSE)
+emat <- simdata$emat
+ume6_kd <- simdata$condition
+
+
+dcanr_input <- assay(DeSeq2_return$dds) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   dplyr::mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"),
+      .before=1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>% 
+  column_to_rownames("hgnc_symbol") %>%
+  as.matrix()
+
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  dplyr::select(deseq2_design_condition) %>%
+  rownames_to_column("SampleName")
+
+dcanr_input <- SummarizedExperiment(
+  assays = dcanr_input,
+  rowData = rownames(dcanr_input),
+  colData = colData
+)
+
+
+dcanr_result <- dcScore(dcanr_input, 
+                        colData$Treatment, 
+                        dc.method = 'diffcoex'
+                        #cor.method = 'spearman'
+                        )
+
+gc()
+#perform a statistical test: the z-test is selected automatically
+raw_p <- dcTest(dcanr_result, dcanr_input, colData$Treatment)
+gc()
+#adjust p-values (raw p-values from dcTest should NOT be modified)
+adj_p <- dcAdjust(raw_p, f = p.adjust, method = 'fdr')
+
+
+library(igraph)
+
+#get the differential network
+dcnet <- dcNetwork(dcanr_result, adj_p)
+plot(dcnet, vertex.label = '')
+
+#convert to an adjacency matrix
+adjmat <- as_adj(dcnet, sparse = FALSE)
+print(adjmat[1:5, 1:5])
+#convert to a data.frame
+edgedf <- as_data_frame(dcnet, what = 'edges')
+print(head(edgedf))
+
+
+rm(dcanr_result, raw_p, adj_p)
+dcMethods()
+
+```
+
+
+
+
+
+
+
+
+```{r lionessR}
+#BiocManager::install("lionessR")
+
+library(lionessR)
+library(igraph)
+library(reshape2)
+library(limma)
+library(SummarizedExperiment)
+
+lioness_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol")
+
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  dplyr::select(deseq2_design_condition) %>%
+  rownames_to_column("SampleName")
+
+se <- SummarizedExperiment(
+  assays = lioness_input %>% as.matrix(),
+  rowData = rownames(lioness_input),
+  colData = colData
+)
+
+
+nsel=5000
+cvar <- apply(assay(se), 1, sd)
+dat <- se[tail(order(cvar), nsel), ]
+
+
+#Next, we will make two condition-specific networks, one for the short-term and one for the long-term metastasis-free survival group. 
+netyes <- cor(t(assay(dat)[, dat[[deseq2_design_condition]] == Test]))
+netno  <- cor(t(assay(dat)[, dat[[deseq2_design_condition]] == Control]))
+netdiff <- netyes-netno
+
+
+
+#We use R packages igraph and reshape2 to convert these adjacency matrices to edgelists. 
+cormat2 <- rep(1:nsel, each=nsel)
+cormat1 <- rep(1:nsel,nsel)
+el <- cbind(cormat1, cormat2, c(netdiff))
+melted <- melt(upper.tri(netdiff))
+melted <- melted[which(melted$value),]
+values <- netdiff[which(upper.tri(netdiff))]
+melted <- cbind(melted[,1:2], values)
+genes <- row.names(netdiff)
+melted[,1] <- genes[melted[,1]]
+melted[,2] <- genes[melted[,2]]
+row.names(melted) <- paste(melted[,1], melted[,2], sep="_")
+tosub <- melted
+tosel <- row.names(tosub[which(abs(tosub[,3])>0.5),])
+
+
+# Next, we’ll model the single-sample networks based on co-expression using lionessR. Note that, depending on the size of the dataset, this could take some time to run. 
+
+
+cormat <- lioness(dat, netFun)
+corsub <- assay(cormat[which(row.names(cormat) %in% tosel), ])
+
+
+
+#We then run a LIMMA analysis on these edges:
+
+group <- factor(se[[deseq2_design_condition]])
+design <- model.matrix(~0+group)
+cont.matrix <- makeContrasts(yesvsno = (as.name(paste0("group", Test)) - as.name(paste0("group", Control))), levels = design)  
+fit <- lmFit(corsub, design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2e <- eBayes(fit2)
+toptable <- topTable(fit2e, number=nrow(corsub), adjust="fdr")
+
+
+#We select the top 50 most differentially co-expressed edges and convert them into an igraph graph.data.frame object for visualization. 
+
+ntop_edges <- 50
+toptable_edges <- t(matrix(unlist(c(strsplit(row.names(toptable), "_"))),2))
+z <- cbind(toptable_edges[1:ntop_edges,], toptable$logFC[1:ntop_edges])
+g <- graph.data.frame(z, directed=FALSE)
+E(g)$weight <- as.numeric(z[,3])
+E(g)$color[E(g)$weight<0] <- "blue"
+E(g)$color[E(g)$weight>0] <- "red"
+E(g)$weight <- 1
+
+
+
+#Next, we perform a LIMMA analysis on gene expression so that we can also color nodes based on their differential expression:
+
+topgeneslist <- unique(c(toptable_edges[1:ntop_edges,]))
+fit <- lmFit(lioness_input, design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2e <- eBayes(fit2)
+topDE <- topTable(fit2e, number=nrow(lioness_input), adjust="fdr")
+topDE <- topDE[which(row.names(topDE) %in% topgeneslist),]
+topgenesDE <- cbind(row.names(topDE), topDE$t)
+
+#We color nodes based on the t-statistic from the LIMMA analysis:
+
+# add t-statistic to network nodes
+nodeorder <- cbind(V(g)$name, 1:length(V(g)))
+nodes <- merge(nodeorder, topgenesDE, by.x=1, by.y=1)
+nodes <- nodes[order(as.numeric(as.character(nodes[,2]))),]
+nodes[,3] <- as.numeric(as.character(nodes[,3]))
+nodes <- nodes[,-2]
+V(g)$weight <- nodes[,2]
+
+# make a color palette
+mypalette4 <- colorRampPalette(c("blue","white","white","red"), space="Lab")(256) 
+breaks2a <- seq(min(V(g)$weight), 0, length.out=128)
+breaks2b <- seq(0.00001, max(V(g)$weight)+0.1,length.out=128)
+breaks4 <- c(breaks2a,breaks2b)
+
+# select bins for colors
+bincol <- rep(NA, length(V(g)))
+for(i in 1:length(V(g))){
+    bincol[i] <- min(which(breaks4>V(g)$weight[i]))
+}
+bincol <- mypalette4[bincol]
+
+# add colors to nodes
+V(g)$color <- bincol
+
+#Finally, we visualize these results in a network diagram. In this diagram, edges are colored based on whether they have higher weights in patients with poor (red) or better (blue) MFS. Thicker edges represent higher fold changes. Nodes (genes) are colored based on the t-statistic from a differential expression analysis. Nodes with absolute t-statistic < 1.5 are shown in white, nodes in red/blue have higher expression in patients with poor/better MFS, respectively. 
+
+par(mar=c(0,0,0,0))
+plot(g, vertex.label.cex=0.7, vertex.size=10, vertex.label.color = "black", vertex.label.font=3, edge.width=10*(abs(as.numeric(z[,3]))-0.7), vertex.color=V(g)$color)
+
+
+
+
+
+```
+
+
+
+
+
+
+# Using data from STRING 
+If you only have RNAseq results, you may want to try if GeneNetworkBuilder could build a network for differential expressed gene. Here is the sample code for that.
+
+```{r STRING}
+
+library(GeneNetworkBuilder)
+library(knitr)
+library(STRINGdb)
+library(org.Hs.eg.db)
+library(tidyverse)
+
+GeneNetworkBuilder_input <- paste0(results_dir, "deseq2_results_annotated.tsv") %>% read.delim() %>% dplyr::select(pvalue = padj, logFC = log2FoldChange, gene = hgnc_symbol)
+
+
+
+gR <- NULL
+try({ ## just in case STRINGdb not work
+    library(STRINGdb)
+    curr_version_table <- 
+      read.table(url("https://string-db.org/api/tsv-no-header/version"),
+                 colClasses = "character")$V1[1]
+    string_db <- STRINGdb$new( version=curr_version_table, species=9606,
+                           score_threshold=400)
+    data(diff_exp_example1)
+    example1_mapped <- string_db$map(GeneNetworkBuilder_input, "gene", removeUnmappedRows = TRUE )
+    i <- string_db$get_interactions(example1_mapped$STRING_id)
+    colnames(example1_mapped) <- c("gene", "P.Value", "logFC", "symbols")
+    ## get significant up regulated genes.
+    genes <- unique(example1_mapped$symbols[example1_mapped$P.Value<0.005 & example1_mapped$logFC>3])
+    ### rooted network, guess the root by connections
+    x<-networkFromGenes(genes = genes, interactionmap=i, level=3)
+    ## filter network
+    ## unique expression data by symbols column
+    expressionData <- uniqueExprsData(example1_mapped, 
+                                       method = 'Max', 
+                                       condenseName = "logFC")
+    ## merge binding table with expression data by symbols column
+    cifNetwork<-filterNetwork(rootgene=x$rootgene, 
+                              sifNetwork=x$sifNetwork, 
+                              exprsData=expressionData, mergeBy="symbols",
+                              miRNAlist=character(0), 
+                              tolerance=1, cutoffPVal=0.001, cutoffLFC=1)
+    ## convert the id back to symbol
+    IDsMap <- expressionData$gene
+    names(IDsMap) <- expressionData$symbols
+    cifNetwork <- convertID(cifNetwork, IDsMap)
+    ## add additional info for searching, any character content columns
+    cifNetwork$info1 <- sample(c("groupA", "groupB"),
+                               size = nrow(cifNetwork),
+                               replace = TRUE)
+    cifNetwork$info2 <- sample(c(FALSE, TRUE),
+                               size = nrow(cifNetwork),
+                               replace = TRUE)
+    cifNetwork$info3 <- sample(seq.int(7),
+                               size = nrow(cifNetwork),
+                               replace = TRUE)
+    ## polish network
+    gR<-polishNetwork(cifNetwork)
+    ## browse network
+    browseNetwork(gR)
+    
+    ## try predefined colors
+    cifNetwork$color <- sample(rainbow(7), nrow(cifNetwork), replace = TRUE)
+    ## polish network
+    gR<-polishNetwork(cifNetwork, nodecolor="color")
+    ## browse network
+    browseNetwork(gR)
+    
+    ### unrooted network
+    x<-networkFromGenes(genes = genes, interactionmap=i, unrooted=TRUE)
+    ## filter network
+    ## unique expression data by symbols column
+    expressionData <- uniqueExprsData(example1_mapped, 
+                                       method = 'Max', 
+                                       condenseName = "logFC")
+    ## merge binding table with expression data by symbols column
+    cifNetwork<-filterNetwork(sifNetwork=x$sifNetwork, 
+                              exprsData=expressionData, mergeBy="symbols",
+                              miRNAlist=character(0), 
+                              tolerance=1, cutoffPVal=0.001,
+                              cutoffLFC=1) # set minify=FALSE to retrieve all the interactions
+    ## convert the id to symbol
+    IDsMap <- expressionData$gene
+    names(IDsMap) <- expressionData$symbols
+    cifNetwork <- convertID(cifNetwork, IDsMap)
+    ## polish network
+    gR<-polishNetwork(cifNetwork)
+    ## browse network
+    browseNetwork(gR)
+})
+```
+
+### Subset the network by gene list
+
+If you are only interested in a subset of gene list such as genes involved in one gene ontology, you can subset the graph.
+
+```{r, subset}
+if(!is.null(gR)){
+  library(org.Hs.eg.db)
+  goGenes <- mget("GO:0002274", org.Hs.egGO2ALLEGS)[[1]]
+  goGenes <- unique(unlist(mget(unique(goGenes), org.Hs.egSYMBOL)))
+  gRs <- subsetNetwork(gR, goGenes)
+  browseNetwork(gRs)
+}
+```
+
+
+```{r david_cola}
+
+#BiocManager::install("cola", update=FALSE)
+library(cola)
+
+david_enrichment_data <- 
+  results_annotated %>% dplyr::filter(padj < 0.05, log2FoldChange > 1) %>%
+  dplyr::filter(!is.na(hgnc_symbol) & !duplicated(hgnc_symbol))%>%
+  dplyr::pull(ensembl_gene_id)
+
+david_enrichment <- david_enrichment(
+    genes = david_enrichment_data,
+    email = "anandagopal.srinivasan@ndorms.ox.ac.uk",
+    catalog = c("KEGG_PATHWAY"),
+    idtype = "ENSEMBL_GENE_ID",
+    species = "Homo sapiens")
+
+
+
+```
+

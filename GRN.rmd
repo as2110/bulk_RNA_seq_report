@@ -537,7 +537,7 @@ hubs %>% filter(Gene %in% c(z, y)) %>% rmarkdown::paged_table(options = list(row
 ```{r corto, echo=FALSE}
 
 #install.packages("corto")
-
+invisible(gc())
 Corto_input <- 
   #inmat %>%
   assay(DeSeq2_return$vsd) %>%
@@ -559,14 +559,14 @@ Corto_input <-
   column_to_rownames("hgnc_symbol") %>% 
   as.matrix()
 
-# load(system.file("extdata","centroids.rda",package="corto"))
-# 
-# centroids <- mapIds(
-#         EnsDb.Hsapiens.v86,
-#         keys = centroids,
-#         column = "GENEID",
-#         keytype = "SYMBOL"
-#       )
+load(system.file("extdata","centroids.rda",package="corto"))
+
+centroids <- mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = centroids,
+        column = "GENEID",
+        keytype = "SYMBOL"
+      )
 
 TF_list <- read.csv("TFDB.csv") %>%
   dplyr::filter(Is.TF. == "Yes")
@@ -576,7 +576,7 @@ TF_list <- TF_list$HGNC.symbol
 invisible(gc())
 corto_regulon <- corto(Corto_input,
                   centroids=TF_list,
-                  nbootstraps=10,
+                  nbootstraps=100,
                   p=1e-7,
                   nthreads=2)
 

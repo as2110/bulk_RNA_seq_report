@@ -139,11 +139,14 @@ for (i in 1:4) {
 
 
 ```{r DAVID, eval=FALSE, include=FALSE}
+#BiocManager::install("RDAVIDWebService")
 
-
-#install.packages("RDAVIDWebService")
+# ## try http:// if https:// URLs are not supported
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("RDAVIDWebService")
+# #install.packages("RDAVIDWebService")
 # library(clusterProfiler)
-# devtools::install_github("XiaoFei-Zhao/RDAVIDWebService")
+# # devtools::install_github("XiaoFei-Zhao/RDAVIDWebService")
 # library(RDAVIDWebService)
 # res <- paste0(results_dir, "deseq2_results_annotated.tsv")
 # results_annotated <- read.delim(res)
@@ -792,7 +795,7 @@ plot_CM( pval_mat_UP,
 
 ```{r CeTF _not_run, eval=FALSE, include=FALSE}
 # Loading packages
-#library(CeTF)
+library(CeTF)
 
 # Loading dds data as an RSE object
 
@@ -816,7 +819,7 @@ counts <- assay(CeTF_input)
 counts <- counts[, order(CeTF_input[[deseq2_design_condition]], decreasing = TRUE)]
 
 # Loading the Transcript Factors (TFs) character
-data("TFs")
+data("TFs", package = "CeTF")
 
 
 
@@ -880,13 +883,45 @@ CeTF_out <- runAnalysis(mat = counts,
 
 
 CeTF_out
+
+
+a <- function () {
+  library(airway)
+library(kableExtra)
+library(knitr)
+
+# Loading airway data
+data("airway")
+
+# Creating a variable with annotation data
+anno <- as.data.frame(colData(airway))
+anno <- anno[order(anno$dex, decreasing = TRUE), ]
+anno <- data.frame(cond = anno$dex, 
+                   row.names = rownames(anno))
+
+# Creating a variable with count data
+counts <- assay(airway)
+
+# Sorting count data samples by conditions (untrt and trt)
+counts <- counts[, rownames(anno)]
+colnames(counts) <- paste0(colnames(counts), c(rep("_untrt", 4), rep("_trt", 4)))
+
+  
+return(counts)  
+}
+
+CeTF_counts <- a()
+anno <- as.data.frame(colData(airway))
+anno <- anno[order(anno$dex, decreasing = TRUE), ]
 ```
 
 
 ```{r cetf}
 
 # Creating a variable with annotation data
-CeTF_anno <- as.data.frame(colData(DeSeq2_return$dds))
+CeTF_anno <- as.data.frame(colData(DeSeq2_return$dds)) 
+
+
 
 # Creating a variable with count data
 CeTF_counts <- assay(DeSeq2_return$dds) %>% 
@@ -908,35 +943,86 @@ CeTF_counts <- assay(DeSeq2_return$dds) %>%
   column_to_rownames("hgnc_symbol") %>% 
   as.matrix()
 
-# Sorting count data samples by conditions (untrt and trt)
-CeTF_input <- CeTF_counts[, order(CeTF_anno[[deseq2_design_condition]], decreasing = TRUE)]
+# Sorting count data samples by conditions (untrt and trt) - this is not needed as deseq2 has already arranged Treatment column of colData as factor with two levels, Control/WT is level 1. 
+CeTF_input <- CeTF_counts[, order(CeTF_anno[[deseq2_design_condition]])]
 
 # Loading the Transcript Factors (TFs) character
-#data("TFs")
+data("TFs")
+CeTF_TFs <- TFs %>%
+  mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = .,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ) %>% unique()
+
 TFs <- read.csv("TFDB.csv") %>%
   dplyr::filter(Is.TF. == "Yes") %>%
+  filter(HGNC.symbol %in% CeTF_TFs) %>% 
   pull(HGNC.symbol)
 
 # Performing the complete analysis
 CeTF_out <- runAnalysis(mat = CeTF_input, 
                    conditions=c(Control, Test),
-                   lfc = 5,
-                   padj = 0.05,
+                   lfc = 1,
+                   padj = 0.01,
                    TFs = TFs,
                    nSamples1 = CeTF_anno[[deseq2_design_condition]] %>% str_count(Control) %>% sum(),
                    nSamples2= CeTF_anno[[deseq2_design_condition]] %>% str_count(Test) %>% sum(),
                    tolType = "mean",
-                   diffMethod = "Reverter", 
+                   diffMethod = "DESeq2", #"Reverter", 
                    data.type = "counts")
 
 
 # Using the runAnalysis output (CeTF class object)
 SmearPlot(object = CeTF_out, 
-          diffMethod = 'Reverter', 
+          diffMethod = 'DESeq2', #"Reverter", 
           lfc = 1, 
           conditions = c(Control, Test), 
           type = "DE")
 
+
+netConditionsPlot(CeTF_out)
+
+# Accessing the network for condition 1
+genes <- unique(c(as.character(NetworkData(CeTF_out, "network1")[, "gene1"]), 
+                  as.character(NetworkData(CeTF_out, "network1")[, "gene2"])))
+
+# Performing getGroupGO analysis
+cond1 <- getGroupGO(genes = genes, 
+                    ont = "BP", 
+                    keyType = "SYMBOL", 
+                    annoPkg = org.Hs.eg.db, 
+                    level = 3)
+
+
+# Performing getEnrich analysis
+enrich <- getEnrich(genes = genes, organismDB = org.Hs.eg.db, 
+                    keyType = 'SYMBOL', ont = 'BP', fdrMethod = "BH", 
+                    fdrThr = 0.05, minGSSize = 5, maxGSSize = 500)
+
+
+# Subsetting only the first 12 Ontologies with more counts
+t1 <- head(cond1$results, 12)
+
+# Subsetting the network for the conditions to make available only the 12 nodes subsetted
+t2 <- subset(cond1$netGO, cond1$netGO$gene1 %in% as.character(t1[, "ID"]))
+
+# generating the GO plot grouping by pathways
+pt <- netGOTFPlot(netCond = NetworkData(CeTF_out, "network1") %>% 
+                    mutate(across(everything(), as.character)),
+                  resultsGO = t1,
+                  netGO = t2,
+                  anno = NetworkData(CeTF_out, "annotation"),
+                  groupBy = 'pathways',
+                  type = 'GO')
+pt$plot
+
+
+enrichPlot(res = enrich$results,
+           type = "bar")
 ```
 
 ```{r}

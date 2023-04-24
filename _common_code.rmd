@@ -10,6 +10,37 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
+```{r kboost}
+
+kboost_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") %>%
+  t() %>%
+  as.matrix()
+
+grn = KBoost_human_symbol(kboost_input,pos_weight=0.6, neg_weight=0.5)
+
+
+grn$GRN %>% View()
+
+
+```
+
+
 ```{r sparrow}
 library(sparrow)
 #BiocManager::install("DEFormats")
@@ -148,24 +179,26 @@ library(pathfindR)
 res <- paste0(results_dir, "deseq2_results_annotated.tsv")
 results_annotated <- read.delim(res)
 pr_input <- results_annotated %>%
-  select(Gene.symbol = hgnc_symbol, 
+  dplyr::select(Gene.symbol = hgnc_symbol, 
          logFC	= log2FoldChange, 
          adj.P.Val = padj) %>% 
-  filter(!is.na(adj.P.Val), !is.na(Gene.symbol), !is.na(logFC))
+  dplyr::filter(!is.na(adj.P.Val), !is.na(Gene.symbol), !is.na(logFC))
 
 
 
 
-pathfindR_output <- run_pathfindR(
+pathfindR_output_Biogrid_Reactome <- run_pathfindR(
   pr_input,
   gene_sets = "Reactome",
+  pin_name_path = "Biogrid",
   min_gset_size = 5,
   max_gset_size = 500,
   output_dir = file.path(results_dir, "pathfindR_results"),
+  visualize_enriched_terms = FALSE,
   plot_enrichment_chart = FALSE
 )
 
-enrichment_chart(result_df = pathfindR_output, 
+enrichment_chart(result_df = pathfindR_output_Biogrid_Reactome, 
                  top_terms = 15)
 
 ```
@@ -219,7 +252,8 @@ unique_TF_from_dorothea <- tfd_dorothea %>%
 tfd %>% filter(!Name.TF %in% TFDB$HGNC.symbol) %>% pull(Name.TF) %>% unique() %>% length()
 
 
-hTFtarget <- read.delim("C:\\Users\\asrinivasan\\Downloads\\hTFtarget.txt")
+hTFtarget <- read.delim("C:\\Users\\asrinivasan\\Downloads\\hTFtarget.txt") %>%
+  select(-tissue) %>% distinct()
 
 unique_TF_from_hTFtarget <- hTFtarget %>% dplyr::select(TF) %>% distinct() 
 
@@ -296,9 +330,89 @@ print(Sys.time() - start)
 ```{r co_Reg_net}
 if (!require("CoRegNet")) {BiocManager::install("CoRegNet")}
 library(CoRegNet)
-data(CIT_BLCA_EXP,HumanTF,CIT_BLCA_Subgroup)
-grn = hLICORN(cemitool_input, TFlist=HumanTF)
 
+#GWENA::filter_low_var(cemitool_input %>% t(), 0.4, )
+
+data(CIT_BLCA_EXP,HumanTF,CIT_BLCA_Subgroup)
+options("mc.cores"=4)
+grn_2 = hLICORN(CIT_BLCA_EXP, TFlist=HumanTF)
+
+invisible(gc())
+grn_2 = hLICORN(BioNERO::filter_by_variance(cemitool_input, percentile = 0.4), TFlist=HumanTF, verbose = TRUE)
+
+
+```
+
+
+```{r regenrich}
+#BiocManager::install("RegEnrich")
+library(RegEnrich)
+regenrich_input <- assay(DeSeq2_return$dds) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") 
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  dplyr::select(deseq2_design_condition) %>%
+  rownames_to_column("SampleName")
+
+data(TFs, package = "RegEnrich")
+Regenrich_TFs <- TFs
+rm(TFs)
+
+Regenrich_object = RegenrichSet(expr = regenrich_input, # expression data (matrix)
+                      colData = colData, # sample information (data frame)
+                      reg = Regenrich_TFs$TF_name, # regulators
+                      method = "Wald_DESeq2", # differentila expression analysis method
+                      design = ~ Treatment, # desing model matrix
+                      contrast = c(deseq2_design_condition, Test, Control), # contrast
+                      networkConstruction = "COEN", # network inference method
+                      #proportion = 0.01,
+                      enrichTest = "FET") # enrichment analysis method
+
+
+Regenrich_results = regenrich_diffExpr(Regenrich_object) %>% 
+  regenrich_network() %>% 
+  regenrich_enrich() %>% 
+  regenrich_rankScore() %>%
+  results_score()
+
+
+
+
+### not run
+library(BiocParallel)
+# on non-Windows computers (use 2 workers)
+bpparam = register(MulticoreParam(workers = 2, RNGseed = 1234))
+# on Windows computers (use 2 workers)
+bpparam = register(SnowParam(workers = 2, RNGseed = 1234))
+
+object3 = regenrich_network(object, networkConstruction = "GRN",
+                            BPPARAM = bpparam, minR = 0.3)
+
+object = regenrich_network(object)
+# Enrichment analysis
+object = regenrich_enrich(object)
+# Regulator scoring and ranking
+object = regenrich_rankScore(object)
+
+# Obtaining results
+Regenrich_results = results_score(object)
+Regenrich_results_GRN = results_score(object3)
 ```
 
 
