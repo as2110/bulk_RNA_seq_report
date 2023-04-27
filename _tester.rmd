@@ -34,27 +34,10 @@ edgepred[[2]] %>% View()
 
 ```{r modifier}
 #BiocManager::install("MODA")
-#devtools::install_git(url = "https://gitlab.com/Gustafsson-lab/MODifieR.git", quiet=FALSE)
-
+librarian::shelf("MODA", "STRINGdb")
+#devtools::install_git(url = "https://gitlab.com/Gustafsson-lab/MODifieR.git", git="external")
+if (!require("MODifieR")) {devtools::install_git(url = "https://gitlab.com/Gustafsson-lab/MODifieR.git", git="external")}
 library("MODifieR")
-
-assay(DeSeq2_return$dds) %>%
-  as.data.frame() %>% 
-  rownames_to_column("id") %>% 
-   dplyr::mutate(
-      hgnc_symbol = mapIds(
-        EnsDb.Hsapiens.v86,
-        keys = id,
-        #keytype = "SYMBOL",
-        #column = "GENEID"
-        keytype = "GENEID",
-        column = "ENTREZID"),
-      .before=1
-    ) %>%
-    drop_na() %>%
-    dplyr::select(-id) %>% column_to_rownames("hgnc_symbol") %>%
-  as.matrix()
-
 
 MODifieR_input <- assay(DeSeq2_return$dds) %>%
   as.data.frame() %>% 
@@ -110,6 +93,8 @@ wgnca_module <- wgcna(MODifieR_input = MODifieR_input_rna,
 wgnca_module2 <- wgcna_adjust_significance(pval_cutoff = 0.1, 
                                           wgcna_module = wgnca_module,
                                           use_unadjusted = FALSE)
+
+
 wgnca_module3 <- wgcna_split_module_by_color(wgcna_module = wgnca_module2)
 
 

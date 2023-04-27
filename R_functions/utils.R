@@ -3,6 +3,16 @@
 #BiocManager::install(c("PCAtools"), ask = FALSE)
 ###load libraries ####
 
+if (!require("librarian")) {install.packages("librarian")}
+librarian::shelf(magritter, tidyverse, ggpmisc, ggpubr, extrafont, fs, tools, ggplotify, grid, kableExtra, RColorBrewer)
+librarian::shelf(yaml, rhdf5, tximport, DESeq2, apeglm)
+librarian::shelf(AnnotationDbi, org.Hs.eg.db, biomaRt, EnsDb.Hsapiens.v86, TxDb.Hsapiens.UCSC.hg38.knownGene)
+librarian::shelf(EnhancedVolcano, PCAtools, pheatmap, ComplexHeatmap)
+librarian::shelf(msigdbr, fgsea, clusterProfiler, multiGSEA, goseq, GOSemSim, enrichplot, enrichR)
+librarian::shelf(Pi, "hfang-bristol/XGR")
+librarian::shelf(WGCNA, CEMiTool, GWENA, BioNERO, corto, KBoost, "jpvert/tigress", lionessR, RTN)
+librarian::shelf(httr, jsonlite, dorothea, decoupleR, TFEA.ChIP, CeTF, RcisTarget, RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
+
 ##general plots
 library(magrittr)
 library(tidyverse)
@@ -20,7 +30,6 @@ library(RColorBrewer)
 ##differential expression
 
 library(yaml)
-library(ymlthis)
 library(tximport)
 library(DESeq2)
 library(apeglm)
