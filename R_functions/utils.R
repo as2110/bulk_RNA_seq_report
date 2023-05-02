@@ -4,7 +4,7 @@
 ###load libraries ####
 
 if (!require("librarian")) {install.packages("librarian")}
-librarian::shelf(magritter, tidyverse, ggpmisc, ggpubr, extrafont, fs, tools, ggplotify, grid, kableExtra, RColorBrewer)
+librarian::shelf(magrittr, tidyverse, ggpmisc, ggpubr, extrafont, fs, tools, ggplotify, grid, kableExtra, RColorBrewer)
 librarian::shelf(yaml, rhdf5, tximport, DESeq2, apeglm)
 librarian::shelf(AnnotationDbi, org.Hs.eg.db, biomaRt, EnsDb.Hsapiens.v86, TxDb.Hsapiens.UCSC.hg38.knownGene)
 librarian::shelf(EnhancedVolcano, PCAtools, pheatmap, ComplexHeatmap)
@@ -14,73 +14,73 @@ librarian::shelf(WGCNA, CEMiTool, GWENA, BioNERO, corto, KBoost, "jpvert/tigress
 librarian::shelf(httr, jsonlite, dorothea, decoupleR, TFEA.ChIP, CeTF, RcisTarget, RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
 
 ##general plots
-library(magrittr)
-library(tidyverse)
-library(ggplot2)
-library(ggpmisc)
-library(ggpubr)
-library(extrafont)
-library(fs)
-library(tools)
-library(ggplotify)
-library(grid)
-library(kableExtra)
-library(RColorBrewer)
-
-##differential expression
-
-library(yaml)
-library(tximport)
-library(DESeq2)
-library(apeglm)
-
-#nice plots
-library(EnhancedVolcano)
-library(PCAtools)
-library(pheatmap)
-library(ComplexHeatmap)
-
-#Annotations
-library(AnnotationDbi)
-library(org.Hs.eg.db)
-library(biomaRt)
-library("EnsDb.Hsapiens.v86")
-
-#BiocManager::install(c("EnsDb.Hsapiens.v86", "TxDb.Hsapiens.UCSC.hg38.knownGene", "org.Hs.eg.db"))
-##GSEA
-library(msigdbr)
-library(fgsea)
-library(multiGSEA)
-#library(EGSEA)
-
-#ORA
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
-library(clusterProfiler)
-library(enrichplot)
-library(goseq)
-library(GOSemSim)
-library(enrichR)
-
-## other GSEA
-library(Pi)
-library(XGR)
-
-##GRN
-library(WGCNA)
-library(CEMiTool)
-library(BioNERO)
-library(GWENA)
-library(corto)
-
-#TF analysis
-library(httr)
-library(jsonlite)
-library("dorothea")
-library("decoupleR")
-library(TFEA.ChIP)
-library(CeTF)
-library(RcisTarget)
-library(RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
+# library(magrittr)
+# library(tidyverse)
+# library(ggplot2)
+# library(ggpmisc)
+# library(ggpubr)
+# library(extrafont)
+# library(fs)
+# library(tools)
+# library(ggplotify)
+# library(grid)
+# library(kableExtra)
+# library(RColorBrewer)
+#
+# ##differential expression
+#
+# library(yaml)
+# library(tximport)
+# library(DESeq2)
+# library(apeglm)
+#
+# #nice plots
+# library(EnhancedVolcano)
+# library(PCAtools)
+# library(pheatmap)
+# library(ComplexHeatmap)
+#
+# #Annotations
+# library(AnnotationDbi)
+# library(org.Hs.eg.db)
+# library(biomaRt)
+# library("EnsDb.Hsapiens.v86")
+#
+# #BiocManager::install(c("EnsDb.Hsapiens.v86", "TxDb.Hsapiens.UCSC.hg38.knownGene", "org.Hs.eg.db"))
+# ##GSEA
+# library(msigdbr)
+# library(fgsea)
+# library(multiGSEA)
+# #library(EGSEA)
+#
+# #ORA
+# library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+# library(clusterProfiler)
+# library(enrichplot)
+# library(goseq)
+# library(GOSemSim)
+# library(enrichR)
+#
+# ## other GSEA
+# library(Pi)
+# library(XGR)
+#
+# ##GRN
+# library(WGCNA)
+# library(CEMiTool)
+# library(BioNERO)
+# library(GWENA)
+# library(corto)
+#
+# #TF analysis
+# library(httr)
+# library(jsonlite)
+# library("dorothea")
+# library("decoupleR")
+# library(TFEA.ChIP)
+# library(CeTF)
+# library(RcisTarget)
+# library(RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
 
 # setClass("DeSeq2_return",
 #          representation(dds= "DESeqDataSet",

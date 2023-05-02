@@ -24,7 +24,7 @@ source("R_functions/read_data.R", local = knitr::knit_global())
 
 ```{r FGSEA table, echo=FALSE, fig.height=10, fig.width=10, message=FALSE, warning=FALSE, paged.print=FALSE}
 
-GSEA <- GSEA_plots(pathways, Plot_title, Control, Test, res =  paste0(results_dir, "deseq2_results_annotated.tsv"))
+GSEA <- GSEA_plots(pathways = "Hallmark", Plot_title, Control, Test, res =  paste0(results_dir, "deseq2_results_annotated.tsv"))
 
 GSEA[[1]]
 

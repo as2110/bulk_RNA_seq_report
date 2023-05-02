@@ -279,10 +279,6 @@ dcMethods()
 
 
 
-
-
-
-
 ```{r lionessR}
 #BiocManager::install("lionessR")
 
@@ -562,4 +558,34 @@ david_enrichment <- david_enrichment(
 
 
 ```
+
+
+
+```{r}
+#BiocManager::install("trena", update=FALSE)
+
+library(trena)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
