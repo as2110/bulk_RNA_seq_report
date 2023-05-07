@@ -3,84 +3,85 @@
 #BiocManager::install(c("PCAtools"), ask = FALSE)
 ###load libraries ####
 
-if (!require("librarian")) {install.packages("librarian")}
-librarian::shelf(magrittr, tidyverse, ggpmisc, ggpubr, extrafont, fs, tools, ggplotify, grid, kableExtra, RColorBrewer)
-librarian::shelf(yaml, rhdf5, tximport, DESeq2, apeglm)
-librarian::shelf(AnnotationDbi, org.Hs.eg.db, biomaRt, EnsDb.Hsapiens.v86, TxDb.Hsapiens.UCSC.hg38.knownGene)
-librarian::shelf(EnhancedVolcano, PCAtools, pheatmap, ComplexHeatmap)
-librarian::shelf(msigdbr, fgsea, clusterProfiler, multiGSEA, goseq, GOSemSim, enrichplot, enrichR)
-librarian::shelf(Pi, "hfang-bristol/XGR")
-librarian::shelf(WGCNA, CEMiTool, GWENA, BioNERO, corto, KBoost, "jpvert/tigress", lionessR, RTN)
-librarian::shelf(httr, jsonlite, dorothea, decoupleR, TFEA.ChIP, CeTF, RcisTarget, RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
+# if (!require("librarian")) {install.packages("librarian")}
+# librarian::shelf(magrittr, tidyverse, ggpmisc, ggpubr, extrafont, fs, tools, ggplotify, grid, kableExtra, RColorBrewer)
+# librarian::shelf(yaml, rhdf5, tximport, DESeq2, apeglm)
+# librarian::shelf(AnnotationDbi, org.Hs.eg.db, biomaRt, EnsDb.Hsapiens.v86, TxDb.Hsapiens.UCSC.hg38.knownGene)
+# librarian::shelf(EnhancedVolcano, PCAtools, pheatmap, ComplexHeatmap)
+# librarian::shelf(msigdbr, fgsea, clusterProfiler, goseq, GOSemSim, enrichplot, enrichR)
+# librarian::shelf(Pi, "hfang-bristol/XGR")
+# librarian::shelf(WGCNA, CEMiTool, GWENA, BioNERO, corto, KBoost, "jpvert/tigress", lionessR, RTN)
+# librarian::shelf(httr, jsonlite, dorothea, decoupleR, TFEA.ChIP, CeTF, RcisTarget, RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
 
+#multiGSEA
 ##general plots
-# library(magrittr)
-# library(tidyverse)
-# library(ggplot2)
-# library(ggpmisc)
-# library(ggpubr)
-# library(extrafont)
-# library(fs)
-# library(tools)
-# library(ggplotify)
-# library(grid)
-# library(kableExtra)
-# library(RColorBrewer)
-#
-# ##differential expression
-#
-# library(yaml)
-# library(tximport)
-# library(DESeq2)
-# library(apeglm)
-#
-# #nice plots
-# library(EnhancedVolcano)
-# library(PCAtools)
-# library(pheatmap)
-# library(ComplexHeatmap)
-#
-# #Annotations
-# library(AnnotationDbi)
-# library(org.Hs.eg.db)
-# library(biomaRt)
-# library("EnsDb.Hsapiens.v86")
-#
-# #BiocManager::install(c("EnsDb.Hsapiens.v86", "TxDb.Hsapiens.UCSC.hg38.knownGene", "org.Hs.eg.db"))
-# ##GSEA
-# library(msigdbr)
-# library(fgsea)
-# library(multiGSEA)
-# #library(EGSEA)
-#
-# #ORA
-# library(TxDb.Hsapiens.UCSC.hg38.knownGene)
-# library(clusterProfiler)
-# library(enrichplot)
-# library(goseq)
-# library(GOSemSim)
-# library(enrichR)
-#
-# ## other GSEA
-# library(Pi)
-# library(XGR)
-#
-# ##GRN
-# library(WGCNA)
-# library(CEMiTool)
-# library(BioNERO)
-# library(GWENA)
-# library(corto)
-#
-# #TF analysis
-# library(httr)
-# library(jsonlite)
-# library("dorothea")
-# library("decoupleR")
-# library(TFEA.ChIP)
-# library(CeTF)
-# library(RcisTarget)
-# library(RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
+library(magrittr)
+library(tidyverse)
+library(ggplot2)
+library(ggpmisc)
+library(ggpubr)
+library(extrafont)
+library(fs)
+library(tools)
+library(ggplotify)
+library(grid)
+library(kableExtra)
+library(RColorBrewer)
+
+##differential expression
+
+library(yaml)
+library(tximport)
+library(DESeq2)
+library(apeglm)
+
+#nice plots
+library(EnhancedVolcano)
+library(PCAtools)
+library(pheatmap)
+library(ComplexHeatmap)
+
+#Annotations
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+library(biomaRt)
+library("EnsDb.Hsapiens.v86")
+
+#BiocManager::install(c("EnsDb.Hsapiens.v86", "TxDb.Hsapiens.UCSC.hg38.knownGene", "org.Hs.eg.db"))
+##GSEA
+library(msigdbr)
+library(fgsea)
+#library(multiGSEA)
+#library(EGSEA)
+
+#ORA
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(clusterProfiler)
+library(enrichplot)
+library(goseq)
+library(GOSemSim)
+library(enrichR)
+
+## other GSEA
+library(Pi)
+library(XGR)
+
+##GRN
+library(WGCNA)
+library(CEMiTool)
+library(BioNERO)
+library(GWENA)
+library(corto)
+
+#TF analysis
+library(httr)
+library(jsonlite)
+library("dorothea")
+library("decoupleR")
+library(TFEA.ChIP)
+library(CeTF)
+library(RcisTarget)
+library(RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
 
 # setClass("DeSeq2_return",
 #          representation(dds= "DESeqDataSet",
@@ -231,10 +232,10 @@ prepare_files <- function(raw_counts, sample_meta_data){
 Deseq2_results <- function(counts, samples, design, control, test, stats = "Wald", batch = NA){
 
   #create results directory for this control
-  ifelse(!dir.exists(paste0("results/", control, "_vs_", test)), dir.create(paste0("results/", control, "_vs_", test)), FALSE)
-  ifelse(!dir.exists(paste0("results/", control, "_vs_", test, "/plots")), dir.create(paste0("results/", control, "_vs_", test, "/plots")), FALSE)
-  plots_dir <<- paste0("results/", control, "_vs_", test, "/plots/")
-  results_dir <<- paste0("results/", control, "_vs_", test, "/")
+  ifelse(!dir.exists(paste0("results/", Plot_title, "_", control, "_vs_", test)), dir.create(paste0("results/", Plot_title, "_", control, "_vs_", test)), FALSE)
+  ifelse(!dir.exists(paste0("results/", Plot_title, "_", control, "_vs_", test, "/plots")), dir.create(paste0("results/", Plot_title, "_", control, "_vs_", test, "/plots")), FALSE)
+  plots_dir <<- paste0("results/", Plot_title, "_", control, "_vs_", test, "/plots/")
+  results_dir <<- paste0("results/", Plot_title, "_", control, "_vs_", test, "/")
 
   ## read the raw data file
   raw <- read_tsv(counts) %>%
@@ -1024,7 +1025,8 @@ Volcano_Plots <- function(de_seq,
                           labels = FALSE,
                           pval = 1e-6,
                           FC = 1.5,
-                          label_list = NULL){
+                          label_list = NULL,
+                          filter_specific = NULL){
 
   contrast_list <- DESeq2::resultsNames(de_seq)
   contrasts <- contrast_list[str_which(contrast_list, test)]
@@ -1047,8 +1049,13 @@ Volcano_Plots <- function(de_seq,
   HS_HALLMARK <- split(x = HS_HALLMARK$gene_symbol, f = HS_HALLMARK$gs_name)
 
 
+  #filter specific
 
   #resLFC <- resLFC %>% filter(hgnc_symbol %in% HS_HALLMARK$HALLMARK_TNFA_SIGNALING_VIA_NFKB)
+
+  if (!is.null(filter_specific)) {
+    resLFC <- resLFC %>% filter(hgnc_symbol %in% filter_specific)
+  }
 
 
 
@@ -1068,6 +1075,7 @@ Volcano_Plots <- function(de_seq,
 
 
   #Defining which genes to label
+
 
   if (!is.null(label_list)) {
     label_LFC <- resLFC %>% filter(hgnc_symbol %in% label_list)
@@ -1195,6 +1203,7 @@ GSEA_plots <-  function(pathways,
 
   ##Choose gene sets list
   #pathways <- HS_HALLMARK
+  c <- str_to_upper(pathways)
   pathway_dbs <- list("HS_HALLMARK" = HS_HALLMARK, "HS_CP_KEGG" = HS_CP_KEGG, "HS_CP_REACTOME" = HS_CP_REACTOME)
   a <-c("HS_HALLMARK", "HS_CP_KEGG", "HS_CP_REACTOME")
   b <- a[str_which(a, str_to_upper(pathways))]
@@ -1216,6 +1225,7 @@ GSEA_plots <-  function(pathways,
                   Normalised_Enrichment_Score = NES,
                   Size = size,
                   Key_genes = leadingEdge) %>%
+    dplyr::mutate(Pathway = str_replace(Pathway, c, "")) %>%
     dplyr::select(Pathway, Normalised_Enrichment_Score, Size, Adjusted_p_value)
   #%>% dplyr::filter(abs(Normalised_Enrichment_Score) > 2.3)
 
@@ -1248,7 +1258,7 @@ GSEA_plots <-  function(pathways,
 
   ###Plots enrichment scores
 
-  FGSEA_plot <- (ggbarplot(fgseaResTidy,
+  FGSEA_plot <- (ggbarplot(fgseaResTidy %>% dplyr::arrange(abs(Normalised_Enrichment_Score)) %>% head(25) %>% dplyr::arrange(desc(Normalised_Enrichment_Score)),
                            x = "Pathway",
                            y = "Normalised_Enrichment_Score",
                            fill = "Adjusted_p_value",
@@ -1295,7 +1305,7 @@ GSEA_plots <-  function(pathways,
     )
 
   FGSEA_plot
-  #ggsave(plots_dir, title, "_", pathways, "_FGSEA_plot.png")
+  ggsave(filename =  paste0(plots_dir, Plot_title, "_", c, "_FGSEA_plot.png"), width = 10, height = 14, units = "in")
   GSEA_return <- list(FGSEA_Results, FGSEA_plot)
   return(GSEA_return)
 
@@ -1389,6 +1399,7 @@ ORA_GoSeq <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv"),
     )
 
 
+
   ###save a list of significant DEGs for use in online tools
   universe <- results_annotated %>% dplyr::select(ensembl_gene_id)
 
@@ -1425,6 +1436,10 @@ ORA_GoSeq <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv"),
               na = "NA",
               row.names=FALSE,
               quote=FALSE)
+
+
+  ggsave(filename =  paste0(plots_dir, Plot_title, "_", over_or_under, "represented_GO", "_plot.png"), width = 10, height = 14, units = "in")
+
 
 
   ORA_return <- list(goseq_res, goPlot, universe, sigGenes)

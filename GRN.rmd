@@ -19,127 +19,10 @@ source("R_functions/read_data.R", local = knitr::knit_global())
 
 ```
 
-
-
-
 ## Co-expression analysis
 
-### WGCNA
-
-```{r wgcna, echo=FALSE, message=FALSE, warning=FALSE}
-
-
-normalised_counts <- t(assay(DeSeq2_return$vsd))
-#normalised_counts <- assay(DeSeq2_return$vsd)[sigGenes, ] %>% t()
-powers <- c(c(1:10), seq(from = 12, to = 20, by = 2))
-sft <- pickSoftThreshold(normalised_counts,
-  dataIsExpr = TRUE,
-  corFnc = cor,
-  networkType = "signed",
-  powerVector = powers
-)
-
-
-# Choose the power parameter based on the scale-free topology fit index
-power <- sft$powerEstimate
-
-sft_df <- data.frame(sft$fitIndices) %>%
-  dplyr::mutate(model_fit = -sign(slope) * SFT.R.sq)
-
-
-colData <- colData(DeSeq2_return$vsd) %>% as.data.frame()
-
-ggplot(sft_df, aes(x = Power, y = model_fit, label = Power)) +
-  # Plot the points
-  geom_point() +
-  # We'll put the Power labels slightly above the data points
-  geom_text(nudge_y = 0.1) +
-  # We will plot what WGCNA recommends as an R^2 cutoff
-  geom_hline(yintercept = 0.80, col = "red") +
-  # Just in case our values are low, we want to make sure we can still see the 0.80 level
-  ylim(c(min(sft_df$model_fit), 1.05)) +
-  # We can add more sensible labels for our axis
-  xlab("Soft Threshold (power)") +
-  ylab("Scale Free Topology Model Fit, signed R^2") +
-  ggtitle("Scale independence") +
-  # This adds some nicer aesthetics to our plot
-  theme_classic()
-
-
-
-
-
-
-
-bwnet <- blockwiseModules(normalised_counts,
-  maxBlockSize = 5000, # What size chunks (how many genes) the calculations should be run in
-  TOMType = "signed", # topological overlap matrix
-  power = 7, # soft threshold for network construction
-  numericLabels = TRUE, # Let's use numbers instead of colors for module labels
-  randomSeed = 1234, # there's some randomness associated with this calculation
-  # so we should set a seed
-)
-
-
-module_eigengenes <- bwnet$MEs
-
-
-# Create the design matrix from the `Treatment` variable
-des_mat <- model.matrix(~ colData[[deseq2_design_condition]])
-# lmFit() needs a transposed version of the matrix
-fit <- limma::lmFit(t(module_eigengenes), design = des_mat)
-
-# Apply empirical Bayes to smooth standard errors
-fit <- limma::eBayes(fit)
-
-# Apply multiple testing correction and obtain stats
-stats_df <- limma::topTable(fit, number = ncol(module_eigengenes)) %>%
-  tibble::rownames_to_column("module")
-
-### visualising one module
-
-module_df <- module_eigengenes %>%
-  tibble::rownames_to_column("SampleName") %>%
-  # Here we are performing an inner join with a subset of metadata
-  dplyr::inner_join(colData(DeSeq2_return$vsd) %>% as.data.frame() %>%
-    dplyr::select(SampleName, deseq2_design_condition)
-  )
-
-top_module <- 
-  ggplot(
-  module_df,
-  aes(
-    x = .data[[deseq2_design_condition]],
-    y = .data[[stats_df %>% dplyr::slice(1) %>% pull(module)]],
-    color = Treatment
-  )
-) +
-  # a boxplot with outlier points hidden (they will be in the sina plot)
-  geom_boxplot(width = 0.2, outlier.shape = NA) +
-  # A sina plot to show all of the individual data points
-  ggforce::geom_sina(maxwidth = 0.3) +
-  theme_classic()
-## NO SIGNIFICANT MODULES SEEN
-
-
-gene_module_key <- tibble::enframe(bwnet$colors, name = "gene", value = "module") %>%
-  # Let's add the `ME` part so its more clear what these numbers are and it matches elsewhere
-  dplyr::mutate(module = paste0("ME", module)) %>% 
-  filter(module == stats_df %>% dplyr::slice(1) %>% pull(module)) %>%
-  mutate(gene = mapIds(
-        EnsDb.Hsapiens.v86,
-        keys = gene,
-        keytype = "GENEID",
-        column = "SYMBOL"
-      ))
-
-top_module
-
-```
-
-
 ### CEMiTool
-```{r CEMiTool, eval=FALSE, include=FALSE}
+```{r CEMiTool, eval=TRUE, include=FALSE}
 
 #BiocManager::install("CEMiTool")
 invisible(gc())
@@ -174,23 +57,32 @@ gmt_fname <- system.file("extdata", "pathways.gmt", package = "CEMiTool")
 gmt_in <- read_gmt(gmt_fname)
 
 int_df <- read.delim(system.file("extdata", "interactions.tsv", package = "CEMiTool"))
-
+invisible(gc())
 # Run CEMiTool
 cemitool_results <- cemitool(cemitool_input, 
                              colData, 
-                             apply_vst = FALSE, 
                              gmt = gmt_in, 
                              interactions = int_df, 
-                             verbose = TRUE, 
-                             force_beta = TRUE, 
+                             filter = TRUE,
+                             filter_pval = 0.4,
+                             #n_genes = 4000,
+                             #apply_vst = TRUE,
+                             set_beta = 12,
+                             #force_beta = TRUE, 
                              class_column = deseq2_design_condition,
-                             network_type = "signed")
+                             network_type = "signed",
+                             verbose = TRUE)
 
 
 invisible(gc())
+
 generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report"))
 
 
+CEMiTool_sig_modules <- CEMiTool::gsea_data(cemitool_results)[[2]] %>% pull(pathway)
+
+
+CEMiTool_hub_genes <- CEMiTool::get_hubs(cemitool_results, 20)[CEMiTool_sig_modules]
 
 
 ```
@@ -236,7 +128,7 @@ SummarizedExperiment::SummarizedExperiment(
     method = "median",
     variance_filter = TRUE,
     #n = 1500,
-    percentile=0.4, 
+    percentile=0.7, 
     Zk_filtering = FALSE
     #vstransform = TRUE
     
@@ -246,19 +138,21 @@ invisible(gc())
 # #Gene coexpression network inference
 #
 sft <- SFT_fit(final_exp, net_type = "signed hybrid", cor_method = "pearson")
-#
 
-tryCatch(
-  {bioNERO_net <- exp2gcn(
+
+bioNERO_net <- exp2gcn(
      final_exp,
    net_type = "signed",
-     SFTpower = sft$power,
-     cor_method = "spearman"
+     SFTpower = 16,
+     cor_method = "spearman",
+   verbose = TRUE
  )
 
 MEtrait <- module_trait_cor(
-    exp = final_exp, MEs = bioNERO_net$MEs, cor_method = "pearson"
+    exp = final_exp, MEs = bioNERO_net$MEs, cor_method = "spearman"
 )
+MEtrait
+
 
 module_enrichment <-
   module_enrichment(
@@ -268,14 +162,173 @@ module_enrichment <-
   )
 
 plot_ngenes_per_module(bioNERO_net)
-MEtrait
-    },
-    error = function(e){ 
-        message("Unable to run co-expression anaysis")
-    } )
 
+
+bioNERO_gcn_significant_modules <- MEtrait %>% 
+  filter(pvalue < 0.05) %>% pull(ME) %>% unique() %>% str_sub(3, -1)
+
+bioNERO_gcn_hubs <- get_hubs_gcn(final_exp, bioNERO_net) %>%
+  filter(Module %in% bioNERO_gcn_significant_modules)
+```
+
+
+
+
+### WGCNA
+
+```{r wgcna, echo=FALSE, message=FALSE, warning=FALSE}
+invisible(gc())
+normalised_counts <- 
+  SummarizedExperiment::SummarizedExperiment(
+  assays = bionero_input,
+  rowData = rownames(bionero_input),
+  colData = colData
+) %>% filter_low_var(0.4, type = "median") %>% as.matrix()  ######
+  exp_preprocess(
+    min_exp = 1, 
+    method = "mean",
+    variance_filter = FALSE,
+    #n = 1500,
+    percentile=0.2, 
+    Zk_filtering = FALSE
+    #vstransform = TRUE
+    
+) %>% assay() %>% t()
+
+#normalised_counts <- assay(DeSeq2_return$vsd)[wgcna_input_shortlist, ] %>% t()
+powers <- c(c(1:10), seq(from = 12, to = 20, by = 2))
+sft <- pickSoftThreshold(normalised_counts,
+  dataIsExpr = TRUE,
+  corFnc = cor,
+  networkType = "signed",
+  powerVector = powers, 
+  verbose = TRUE
+)
+
+
+# Choose the power parameter based on the scale-free topology fit index
+power <- sft$powerEstimate
+
+sft_df <- data.frame(sft$fitIndices) %>%
+  dplyr::mutate(model_fit = -sign(slope) * SFT.R.sq)
+
+colData <- colData(DeSeq2_return$vsd) %>% as.data.frame()
+
+ggplot(sft_df, aes(x = Power, y = model_fit, label = Power)) +
+  # Plot the points
+  geom_point() +
+  # We'll put the Power labels slightly above the data points
+  geom_text(nudge_y = 0.1) +
+  # We will plot what WGCNA recommends as an R^2 cutoff
+  geom_hline(yintercept = 0.80, col = "red") +
+  # Just in case our values are low, we want to make sure we can still see the 0.80 level
+  ylim(c(min(sft_df$model_fit), 1.05)) +
+  # We can add more sensible labels for our axis
+  xlab("Soft Threshold (power)") +
+  ylab("Scale Free Topology Model Fit, signed R^2") +
+  ggtitle("Scale independence") +
+  # This adds some nicer aesthetics to our plot
+  theme_classic()
+
+
+
+
+
+
+bwnet <- blockwiseModules(normalised_counts,
+  maxBlockSize = 6000, # What size chunks (how many genes) the calculations should be run in
+  TOMType = "signed", # topological overlap matrix
+  power = 12, # soft threshold for network construction
+  numericLabels = TRUE, # Let's use numbers instead of colors for module labels
+  randomSeed = 1234, # there's some randomness associated with this calculation
+  # so we should set a seed
+)
+
+
+module_eigengenes <- bwnet$MEs
+
+#MM
+
+# Create the design matrix from the `Treatment` variable
+des_mat <- model.matrix(~ colData[[deseq2_design_condition]])
+# lmFit() needs a transposed version of the matrix
+fit <- limma::lmFit(t(module_eigengenes), design = des_mat)
+
+# Apply empirical Bayes to smooth standard errors
+fit <- limma::eBayes(fit)
+
+# Apply multiple testing correction and obtain stats
+stats_df <- limma::topTable(fit, number = ncol(module_eigengenes)) %>%
+  tibble::rownames_to_column("module")
+
+
+## pick significant modules and merge together
+signifcant_wgcna_modules <- stats_df %>% dplyr::filter(P.Value < 0.05) %>% 
+  mutate(UpDown = ifelse(t < 0, "Down", "Up"))
+
+### visualising one module
+
+module_df <- module_eigengenes %>%
+  tibble::rownames_to_column("SampleName") %>%
+  # Here we are performing an inner join with a subset of metadata
+  dplyr::inner_join(colData(DeSeq2_return$vsd) %>% as.data.frame() %>%
+    dplyr::select(SampleName, deseq2_design_condition)
+  ) %>% dplyr::select(SampleName, deseq2_design_condition, signifcant_wgcna_modules$module)
+
+## Summarise signifcant modules
+
+plot_significant_module <- function(module_df = module_df, significant_module){
+  top_module <-
+    ggplot(module_df,
+           aes(x = .data[[deseq2_design_condition]],
+               y = .data[[significant_module]],
+               color = Treatment)) +
+    # a boxplot with outlier points hidden (they will be in the sina plot)
+    geom_boxplot(width = 0.2, outlier.shape = NA) +
+    # A sina plot to show all of the individual data points
+    ggforce::geom_sina(maxwidth = 0.3) +
+    theme_classic()
+  
+  print(top_module)
+  return(top_module) 
+}
+
+for (i in 1:length(signifcant_wgcna_modules$module)) {
+  plot_significant_module(module_df, signifcant_wgcna_modules$module[i])
+}
+## NO SIGNIFICANT MODULES SEEN
+
+
+# is this useful??
+wgcna_hubs    = chooseTopHubInEachModule(normalised_counts, bwnet$colors)
+wgcna_hubs
+
+gene_module_key <- tibble::enframe(bwnet$colors, name = "gene", value = "module") %>%
+  # Let's add the `ME` part so its more clear what these numbers are and it matches elsewhere
+  dplyr::mutate(module = paste0("ME", module)) %>% 
+  filter(module %in% (stats_df %>% dplyr::filter(P.Value < 0.05) %>% pull(module))) %>% 
+  # mutate(gene = mapIds(
+  #       EnsDb.Hsapiens.v86,
+  #       keys = gene,
+  #       keytype = "GENEID",
+  #       column = "SYMBOL"
+  #     )) %>% 
+  group_by(module) %>% 
+  mutate(n=n())  #pull(gene) %>% unique() %>% length()
+
+
+Volcano_Plots(de_seq = DeSeq2_return$de_seq, 
+              test = Test, 
+              res = DeSeq2_return$res, 
+              labels = TRUE,
+              title = "WGCNA module",
+              pval = pvalue_VP, 
+              label_list = NULL,
+              filter_specific = gene_module_key %>% filter(module == "ME1") %>% pull(gene),
+              FC = 1)
 
 ```
+
 
 ### GWENA
 
@@ -286,21 +339,43 @@ invisible(gc())
 
 
 ## prep input for GWENA - need SE object at least 2 columns as colDATA
+GWENA_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") %>%
+  as.matrix()
+
+colData <-SummarizedExperiment::colData(DeSeq2_return$vsd)
 
 GWENA_input <-
 SummarizedExperiment::SummarizedExperiment(
-  assays = assay(DeSeq2_return$vsd),
-  rowData = rowData(DeSeq2_return$vsd),
-  colData = SummarizedExperiment::colData(DeSeq2_return$vsd)
-) %>% 
+  assays = GWENA_input,
+  rowData = rownames(GWENA_input),
+  colData = colData
+) %>% filter_low_var(pct = 0.4, type = "median")#%>% exp_preprocess(Zk_filtering = FALSE, variance_filter = TRUE, percentile = 0.7)
   #filter_RNA_seq(min_count = 5, method = "mean") %>%
-  filter_low_var(pct = 0.3, type = "median")
+ 
 
 
 GWENA_net <- build_net(GWENA_input, 
                        cor_func = "spearman",
                        network_type = "signed",
-                       n_threads = 2)
+                       power_value = 12,
+                       block_size = 5000,
+                       n_threads = 4)
 
 # Power selected :
 GWENA_net$metadata$power
@@ -308,13 +383,13 @@ GWENA_net$metadata$power
 
 # Fit of the power law to data ($R^2$) :
 fit_power_table <- GWENA_net$metadata$fit_power_table
-fit_power_table[fit_power_table$Power %in% 1:20, "SFT.R.sq"]
+#fit_power_table[fit_power_table$Power %in% 1:20, "SFT.R.sq"]
 
 
 GWENA_modules <- detect_modules(GWENA_input, 
                             GWENA_net$network, 
                             detailled_result = TRUE,
-                            merge_threshold = 0.25)
+                            merge_threshold = 0.8)
 
 
 GWENA_modules_gene_count_plot <-
@@ -322,13 +397,16 @@ GWENA_modules_gene_count_plot <-
                 ggplot2::aes(x = ind)) + ggplot2::stat_count() +
   ggplot2::ylab("Number of genes") +
   ggplot2::xlab("Module")
+GWENA_modules_gene_count_plot
+
+
 
 GWENA_enrichment <- bio_enrich(GWENA_modules$modules)
 GWENA_encrichment_plot <- plot_enrichment(GWENA_enrichment)
+GWENA_encrichment_plot
 
 
-
-#plot_expression_profiles(GWENA_input, GWENA_modules$modules)
+plot_expression_profiles(GWENA_input, GWENA_modules$modules)
 
 
 # With data.frame/matrix
@@ -339,151 +417,18 @@ phenotype_association <- associate_phenotype(
     as.matrix(),
   id_col = "name")
 
+GWENA_sig_modules <- phenotype_association$pval %>% filter(.data[[Test]] < 0.05) %>% rownames()
+GWENA_phenotype_association <- plot_modules_phenotype(phenotype_association)
 
+GWENA_phenotype_association
 
-GWENA_encrichment_plot
-
-plot_modules_phenotype(phenotype_association)
-
-# GWENA_encrichment_plot
-# 
-# 
-# DEGs <- results_annotated %>% dplyr::filter(
-#   abs(log2FoldChange) > 1,
-#   padj < 0.05,
-#   ensembl_gene_id %in% GWENA_modules$modules$`2`
-# ) %>% pull(ensembl_gene_id)
-# 
-# GWENA_modules$modules$`2` 
+GWENA_net$network %>% GWENA::get_hub_high_co(GWENA_modules$modules[c(parse_number(GWENA_sig_modules))], 
+                                       top_n = 10)
 
 ```
 
 
 ## GRN methods
-
-```{r GNET2, eval=FALSE, fig.height=10, fig.width=10, include=FALSE}
-
-#BiocManager::install("GNET2")
-#install_github("chrischen1/GNET2")
-#unload("GNET2")
-library(GNET2)
-TF_list <- read.csv("TFDB.csv") %>%
-  dplyr::filter(Is.TF. == "Yes")
-TF_list <- TF_list$Ensembl.ID
-init_group_num = 8
-init_method = 'kmeans'
-
-colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>% as.data.frame() %>% dplyr::select(3) #%>% column_to_rownames()
-
-
-gnet_input <-
-SummarizedExperiment::SummarizedExperiment(
-  assays = assay(DeSeq2_return$vsd),
-  rowData = rowData(DeSeq2_return$vsd),
-  colData = colData
-) 
-
-
-gnet_result <- gnet2(input = gnet_input,
-                    reg_names =  TF_list,
-                    init_method = init_method,
-                    init_group_num = init_group_num,
-                    heuristic = TRUE)
-
-
-exp_labels <- c(rep("WT", 3), rep("Carfilzomib", 3))
-plot_gene_group(gnet_result,group_idx = 1,plot_leaf_labels = T)
-
-plot_gene_group(gnet_result,group_idx = 1,group_labels = exp_labels)
-
-
-
-exp_labels_factor = as.numeric(factor(exp_labels))
-
-print('Similarity to categorical experimental conditions of each module:')
-
-print(similarity_score(gnet_result,exp_labels_factor))
-
-
-plot_tree(gnet_result,group_idx = 1)
-
-
-group_index = 1
-print('Regulators in module 1:')
-
-print(gnet_result$regulators[[group_index]])
-
-print('Targets in module 1:')
-
-print(gnet_result$target_genes[[group_index]])
-
-mat <- extract_edges(gnet_result)
-
-print(dim(mat))
-```
-
-```{r rtn, eval=FALSE, include=FALSE}
-#BiocManager::install("RTN")
-library(RTN)
-
-TF_list <- read.csv("TFDB.csv") %>%
-  dplyr::filter(Is.TF. == "Yes")
-TF_list <- TF_list$Ensembl.ID
-#TF_list <- TF_list$HGNC.symbol
-init_group_num = 8
-init_method = 'boosting'
-
-#colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>% as.data.frame() %>% dplyr::select(-1, -4) #%>% column_to_rownames()
-
-
-rtn_input <-
-SummarizedExperiment::SummarizedExperiment(
-  assays = assay(DeSeq2_return$vsd),
-  rowData = rowData(DeSeq2_return$vsd),
-  colData = colData(DeSeq2_return$vsd)
-) 
-
-rowAnnotation <- 
-  results_annotated %>% dplyr::select(ID = ensembl_gene_id,
-                                    GENEID = ensembl_gene_id,
-                                    SYMBOL = hgnc_symbol)
-
-colAnnotation <- colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::select(1, 3)
-
-rtni <- tni.constructor(expData = assay(DeSeq2_return$vsd),
-                        rowAnnotation = rowAnnotation,
-                        colAnnotation = colAnnotation,
-                        regulatoryElements = TF_list)
-
-rtni %<>% 
-  tni.permutation(nPermutations = 100) %<>% 
-  tni.bootstrap() %<>% 
-  tni.dpi.filter()
-
-#rtni <- tni.dpi.filter(rtni)
-
-tni.regulon.summary(rtni)
-
-
-
-tnaData <- list(phenotype = "", hits = "", phenoIDs = "")
-tnaData$phenotype <- c(results_annotated$log2FoldChange)
-names(tnaData$phenotype) <- c(results_annotated$ensembl_gene_id)
-tnaData$hits <- results_annotated %>% 
-  dplyr::filter(abs(log2FoldChange) > 1, padj < 0.05) %>% pull(ensembl_gene_id)
-tnaData$phenoIDs <- results_annotated %>% dplyr::select(ensembl_gene_id, hgnc_symbol) %>% as.matrix()
-
-
-
-
-rtna <- tni2tna.preprocess(object = rtni, 
-                           phenotype = tnaData$phenotype, 
-                           hits = tnaData$hits, 
-                           phenoIDs = tnaData$phenoIDs)
-
-
-
-```
 
 ### BioNERO
 ```{r bionero grn, echo=FALSE, fig.height=10, fig.width=10}
@@ -496,12 +441,12 @@ TF_list <- TF_list$HGNC.symbol
 bionero_grn <- exp2grn(
     exp = final_exp, 
     regulators = TF_list, 
-    nTrees = 10
+    nsplit = 10
 )
 
-bionero_grn_list <- grn_combined(final_exp, regulators = TF_list, nTrees = 10)
+#bionero_grn_list <- grn_combined(final_exp, regulators = TF_list, nTrees = 10)
 
-hubs <- get_hubs_grn(bionero_grn)
+bionero_grn_hubs <- get_hubs_grn(bionero_grn, top_n = 200)
 
 
 plot_grn(bionero_grn, interactive = TRUE, dim_interactive = c(500,500))
@@ -513,11 +458,92 @@ Volcano_Plots(de_seq = DeSeq2_return$de_seq,
               labels = TRUE,
               title = Plot_title,
               pval = 1e-5, 
-              label_list = hubs$Gene,
+              label_list = bionero_grn_hubs$Gene,
+              #filter_specific = bionero_grn_hubs$Gene,
               FC = 1)
 
 #ggsave(paste0(plots_dir, Volcano$labels$title, "_", Volcano$labels$subtitle,"BioNERO__Volcano_Plots.png"))
 
+```
+
+
+##RegEnrich
+
+
+```{r regenrich}
+#BiocManager::install("RegEnrich")
+invisible(gc())
+
+library(RegEnrich)
+regenrich_input <- assay(DeSeq2_return$dds) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") 
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  dplyr::select(deseq2_design_condition) %>%
+  rownames_to_column("SampleName")
+
+data(TFs, package = "RegEnrich")
+Regenrich_TFs <- TFs
+rm(TFs)
+
+Regenrich_object = RegenrichSet(expr = regenrich_input, # expression data (matrix)
+                      colData = colData, # sample information (data frame)
+                      reg = Regenrich_TFs$TF_name, # regulators
+                      method = "Wald_DESeq2", # differentila expression analysis method
+                      design = ~ Treatment, # desing model matrix
+                      contrast = c(deseq2_design_condition, Test, Control), # contrast
+                      networkConstruction = "COEN", # network inference method
+                      RsquaredCut = 0.8,
+                      #proportion = 0.01,
+                      enrichTest = "FET") # enrichment analysis method
+
+
+Regenrich_results_COEN = regenrich_diffExpr(Regenrich_object) %>% 
+  regenrich_network() %>% 
+  regenrich_enrich() %>% 
+  regenrich_rankScore() %>%
+  results_score()
+
+
+
+
+### not run
+library(BiocParallel)
+# on non-Windows computers (use 2 workers)
+bpparam = register(MulticoreParam(workers = 4, RNGseed = 1234))
+# on Windows computers (use 2 workers)
+#bpparam = register(SnowParam(workers = 2, RNGseed = 1234))
+
+invisible(gc())
+
+object3 = 
+  regenrich_diffExpr(Regenrich_object) %>% 
+  regenrich_network(networkConstruction = "GRN",
+                            BPPARAM = bpparam, minR = 0.3) 
+
+# Obtaining results
+#Regenrich_results = results_score(object)
+invisible(gc())
+Regenrich_results_GRN = object3 %>%
+  regenrich_enrich() %>% 
+  regenrich_rankScore() %>%
+  results_score()
 ```
 
 
@@ -532,9 +558,8 @@ hubs %>% filter(Gene %in% c(z, y)) %>% rmarkdown::paged_table(options = list(row
   ) %>% kableExtra::kable_paper()
 ```
 
-
 ### Corto
-```{r corto, echo=FALSE}
+```{r corto, eval=FALSE, include=FALSE}
 
 #install.packages("corto")
 invisible(gc())

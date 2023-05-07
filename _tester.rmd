@@ -31,7 +31,6 @@ edgepred[[2]] %>% View()
 ```
 
 
-
 ```{r modifier}
 #BiocManager::install("MODA")
 librarian::shelf("MODA", "STRINGdb")
@@ -359,7 +358,8 @@ corsub <- assay(cormat[which(row.names(cormat) %in% tosel), ])
 
 group <- factor(se[[deseq2_design_condition]])
 design <- model.matrix(~0+group)
-cont.matrix <- makeContrasts(yesvsno = (as.name(paste0("group", Test)) - as.name(paste0("group", Control))), levels = design)  
+cont.matrix <- makeContrasts(yesvsno = (as.symbol(paste0("group", Test)) - as.symbol(paste0("group", Control))), levels = design)
+cont.matrix <- makeContrasts(yesvsno = (groupCarfilzomib - groupWT), levels = design)  
 fit <- lmFit(corsub, design)
 fit2 <- contrasts.fit(fit, cont.matrix)
 fit2e <- eBayes(fit2)
@@ -423,10 +423,8 @@ plot(g, vertex.label.cex=0.7, vertex.size=10, vertex.label.color = "black", vert
 
 
 
-
+rm(toptable_edges, toptable)
 ```
-
-
 
 
 
@@ -562,9 +560,12 @@ david_enrichment <- david_enrichment(
 
 
 ```{r}
-#BiocManager::install("trena", update=FALSE)
+BiocManager::install("AMOUNTAIN", update=FALSE)
 
 library(trena)
+library(DIANE)
+library(MODA)
+library("MODifieR")
 ```
 
 
