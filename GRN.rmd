@@ -76,13 +76,14 @@ cemitool_results <- cemitool(cemitool_input,
 
 invisible(gc())
 
-generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report"))
-
-
 CEMiTool_sig_modules <- CEMiTool::gsea_data(cemitool_results)[[2]] %>% pull(pathway)
 
 
 CEMiTool_hub_genes <- CEMiTool::get_hubs(cemitool_results, 20)[CEMiTool_sig_modules]
+
+
+generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report"))
+
 
 
 ```
@@ -184,16 +185,16 @@ normalised_counts <-
   rowData = rownames(bionero_input),
   colData = colData
 ) %>% filter_low_var(0.4, type = "median") %>% as.matrix()  ######
-  exp_preprocess(
-    min_exp = 1, 
-    method = "mean",
-    variance_filter = FALSE,
-    #n = 1500,
-    percentile=0.2, 
-    Zk_filtering = FALSE
-    #vstransform = TRUE
-    
-) %>% assay() %>% t()
+#   exp_preprocess(
+#     min_exp = 1, 
+#     method = "mean",
+#     variance_filter = TRUE,
+#     #n = 1500,
+#     percentile=0.2, 
+#     Zk_filtering = FALSE
+#     #vstransform = TRUE
+#     
+# ) %>% assay() %>% t()
 
 #normalised_counts <- assay(DeSeq2_return$vsd)[wgcna_input_shortlist, ] %>% t()
 powers <- c(c(1:10), seq(from = 12, to = 20, by = 2))
@@ -211,8 +212,6 @@ power <- sft$powerEstimate
 
 sft_df <- data.frame(sft$fitIndices) %>%
   dplyr::mutate(model_fit = -sign(slope) * SFT.R.sq)
-
-colData <- colData(DeSeq2_return$vsd) %>% as.data.frame()
 
 ggplot(sft_df, aes(x = Power, y = model_fit, label = Power)) +
   # Plot the points
@@ -233,12 +232,12 @@ ggplot(sft_df, aes(x = Power, y = model_fit, label = Power)) +
 
 
 
-
+## make blockwise modules net
 
 bwnet <- blockwiseModules(normalised_counts,
   maxBlockSize = 6000, # What size chunks (how many genes) the calculations should be run in
   TOMType = "signed", # topological overlap matrix
-  power = 12, # soft threshold for network construction
+  power = 9, # soft threshold for network construction
   numericLabels = TRUE, # Let's use numbers instead of colors for module labels
   randomSeed = 1234, # there's some randomness associated with this calculation
   # so we should set a seed
@@ -282,7 +281,7 @@ plot_significant_module <- function(module_df = module_df, significant_module){
     ggplot(module_df,
            aes(x = .data[[deseq2_design_condition]],
                y = .data[[significant_module]],
-               color = Treatment)) +
+               color = .data[[deseq2_design_condition]])) +
     # a boxplot with outlier points hidden (they will be in the sina plot)
     geom_boxplot(width = 0.2, outlier.shape = NA) +
     # A sina plot to show all of the individual data points
@@ -324,7 +323,7 @@ Volcano_Plots(de_seq = DeSeq2_return$de_seq,
               title = "WGCNA module",
               pval = pvalue_VP, 
               label_list = NULL,
-              filter_specific = gene_module_key %>% filter(module == "ME1") %>% pull(gene),
+              filter_specific = gene_module_key %>% pull(gene),
               FC = 1)
 
 ```
