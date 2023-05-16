@@ -315,6 +315,8 @@ gene_module_key <- tibble::enframe(bwnet$colors, name = "gene", value = "module"
   group_by(module) %>% 
   mutate(n=n())  #pull(gene) %>% unique() %>% length()
 
+color_specific <- c(WGCNA::labels2colors(gene_module_key$module))
+names(color_specific) <- gene_module_key$gene
 
 Volcano_Plots(de_seq = DeSeq2_return$de_seq, 
               test = Test, 
@@ -324,8 +326,8 @@ Volcano_Plots(de_seq = DeSeq2_return$de_seq,
               pval = pvalue_VP, 
               label_list = NULL,
               filter_specific = gene_module_key %>% pull(gene),
+              color_specifc = color_specific,
               FC = 1)
-
 ```
 
 

@@ -1025,6 +1025,7 @@ Volcano_Plots <- function(de_seq,
                           labels = FALSE,
                           pval = 1e-6,
                           FC = 1.5,
+                          color_specifc = NULL,
                           label_list = NULL,
                           filter_specific = NULL){
 
@@ -1060,6 +1061,13 @@ Volcano_Plots <- function(de_seq,
 
 
   #Defining colour values:
+  if (!is.null(color_specifc)) {
+    color_specific <- data.frame(color = color_specific) %>% rownames_to_column("hgnc_symbol")
+    resLFC <- resLFC %>% left_join(color_specific) %>% mutate(color = tidyr::replace_na(color, "black"))
+    keyvals <- resLFC$color
+    names(keyvals) <- resLFC$color
+    names(keyvals)[keyvals == 'black'] <- 'no module'
+  } else {
   Low_colour <- resLFC$log2FoldChange < -FC & resLFC$padj < pval
 
   High_colour <- resLFC$log2FoldChange > FC & resLFC$padj < pval
@@ -1071,7 +1079,7 @@ Volcano_Plots <- function(de_seq,
   keyvals[is.na(keyvals)] <- 'black'
   names(keyvals)[keyvals == 'dark green'] <- 'high'
   names(keyvals)[keyvals == 'black'] <- 'mid'
-  names(keyvals)[keyvals == 'red'] <- 'low'
+  names(keyvals)[keyvals == 'red'] <- 'low' }
 
 
   #Defining which genes to label
