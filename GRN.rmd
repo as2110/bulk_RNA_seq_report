@@ -59,15 +59,17 @@ gmt_in <- read_gmt(gmt_fname)
 int_df <- read.delim(system.file("extdata", "interactions.tsv", package = "CEMiTool"))
 invisible(gc())
 # Run CEMiTool
+#cemitool_input <- assay(final_exp) %>% as.data.frame()
 cemitool_results <- cemitool(cemitool_input, 
                              colData, 
                              gmt = gmt_in, 
                              interactions = int_df, 
                              filter = TRUE,
-                             filter_pval = 0.4,
-                             #n_genes = 4000,
+                             filter_pval = 0.1,
                              #apply_vst = TRUE,
-                             set_beta = 12,
+                             n_genes = 4000,
+                             #apply_vst = TRUE,
+                             set_beta = 18,
                              #force_beta = TRUE, 
                              class_column = deseq2_design_condition,
                              network_type = "signed",
@@ -76,13 +78,13 @@ cemitool_results <- cemitool(cemitool_input,
 
 invisible(gc())
 
-CEMiTool_sig_modules <- CEMiTool::gsea_data(cemitool_results)[[2]] %>% pull(pathway)
+CEMiTool_sig_modules <- CEMiTool::gsea_data(cemitool_results)[[3]] %>% filter(.data[[Control]] < 0.05) %>% pull(pathway)
 
 
 CEMiTool_hub_genes <- CEMiTool::get_hubs(cemitool_results, 20)[CEMiTool_sig_modules]
 
 
-generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report"))
+generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report_01_4000genes"))
 
 
 
@@ -116,7 +118,7 @@ bionero_input <- assay(DeSeq2_return$vsd) %>%
     drop_na() %>%
     dplyr::select(-id) %>%
   column_to_rownames("hgnc_symbol") %>%
-  as.matrix()
+  as.matrix() 
 
 final_exp <-
 SummarizedExperiment::SummarizedExperiment(
@@ -126,41 +128,47 @@ SummarizedExperiment::SummarizedExperiment(
 ) %>%
   exp_preprocess(
     min_exp = 1, 
+    remove_nonexpressed = FALSE,
     method = "median",
     variance_filter = TRUE,
-    #n = 1500,
-    percentile=0.7, 
-    Zk_filtering = FALSE
-    #vstransform = TRUE
+    n = 5000,
+    #percentile=0.3, 
+    Zk_filtering = FALSE,
+    vstransform = FALSE
     
 )
+
+
 
 invisible(gc())
 # #Gene coexpression network inference
 #
-sft <- SFT_fit(final_exp, net_type = "signed hybrid", cor_method = "pearson")
-
+sft <- SFT_fit(final_exp, net_type = "signed", cor_method = "pearson")
+sft$plot
 
 bioNERO_net <- exp2gcn(
      final_exp,
    net_type = "signed",
-     SFTpower = 16,
+     SFTpower = sft$power,
      cor_method = "spearman",
    verbose = TRUE
  )
 
 MEtrait <- module_trait_cor(
-    exp = final_exp, MEs = bioNERO_net$MEs, cor_method = "spearman"
+    exp = final_exp, 
+    #metadata = ,
+    MEs = bioNERO_net$MEs, 
+    cor_method = "spearman"
 )
 MEtrait
 
 
-module_enrichment <-
-  module_enrichment(
-    net = bioNERO_net,
-    background_genes = rownames(bioNERO_net),
-    annotation = dplyr::select(gmt_in, gene, term)
-  )
+# module_enrichment <-
+#   module_enrichment(
+#     net = bioNERO_net,
+#     background_genes = rownames(bioNERO_net),
+#     annotation = dplyr::select(gmt_in, gene, term)
+#   )
 
 plot_ngenes_per_module(bioNERO_net)
 
@@ -178,23 +186,48 @@ bioNERO_gcn_hubs <- get_hubs_gcn(final_exp, bioNERO_net) %>%
 ### WGCNA
 
 ```{r wgcna, echo=FALSE, message=FALSE, warning=FALSE}
-invisible(gc())
+invisible(gc()) 
+
+colData <-  SummarizedExperiment::colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::select(deseq2_design_condition) 
+
+wgcna_input <- assay(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") %>%
+  as.matrix() 
+
 normalised_counts <- 
   SummarizedExperiment::SummarizedExperiment(
-  assays = bionero_input,
-  rowData = rownames(bionero_input),
-  colData = colData
-) %>% filter_low_var(0.4, type = "median") %>% as.matrix()  ######
-#   exp_preprocess(
-#     min_exp = 1, 
-#     method = "mean",
-#     variance_filter = TRUE,
-#     #n = 1500,
-#     percentile=0.2, 
-#     Zk_filtering = FALSE
-#     #vstransform = TRUE
-#     
-# ) %>% assay() %>% t()
+  assays = wgcna_input ,
+  rowData = rownames(wgcna_input),
+  colData = colData) %>% 
+  #filter_low_var(0.999, type = "median") %>%
+  # exp_preprocess(
+  #   min_exp = 1,
+  #   #remove_nonexpressed = FALSE,
+  #   #NA_rm = FALSE,
+  #   method = "mean",
+  #   variance_filter = TRUE,
+  #   #remove_confounders = FALSE,
+  #   #n = 10100,
+  #   remove_confounders = TRUE,
+  #   percentile=0.7,
+  #   Zk_filtering = FALSE) %>%
+    assay() %>% t() %>%
+    as.matrix()  
 
 #normalised_counts <- assay(DeSeq2_return$vsd)[wgcna_input_shortlist, ] %>% t()
 powers <- c(c(1:10), seq(from = 12, to = 20, by = 2))
@@ -233,17 +266,17 @@ ggplot(sft_df, aes(x = Power, y = model_fit, label = Power)) +
 
 
 ## make blockwise modules net
-
+invisible(gc())
 bwnet <- blockwiseModules(normalised_counts,
-  maxBlockSize = 6000, # What size chunks (how many genes) the calculations should be run in
+  maxBlockSize = 5000, # What size chunks (how many genes) the calculations should be run in
   TOMType = "signed", # topological overlap matrix
-  power = 9, # soft threshold for network construction
+  power = 18, # soft threshold for network construction
   numericLabels = TRUE, # Let's use numbers instead of colors for module labels
   randomSeed = 1234, # there's some randomness associated with this calculation
   # so we should set a seed
 )
 
-
+#a <- readRDS("bwnetAMOcar.rds")
 module_eigengenes <- bwnet$MEs
 
 #MM
@@ -359,14 +392,18 @@ GWENA_input <- assay(DeSeq2_return$vsd) %>%
   column_to_rownames("hgnc_symbol") %>%
   as.matrix()
 
-colData <-SummarizedExperiment::colData(DeSeq2_return$vsd)
+colData <-SummarizedExperiment::colData(DeSeq2_return$vsd) %>%
+  as.data.frame() %>% 
+  dplyr::select(deseq2_design_condition)
 
 GWENA_input <-
 SummarizedExperiment::SummarizedExperiment(
   assays = GWENA_input,
   rowData = rownames(GWENA_input),
   colData = colData
-) %>% filter_low_var(pct = 0.4, type = "median")#%>% exp_preprocess(Zk_filtering = FALSE, variance_filter = TRUE, percentile = 0.7)
+) %>% filter_low_var(pct = 0.4, type = "median")
+  #%>% exp_preprocess(Zk_filtering = FALSE, variance_filter = TRUE, percentile = 0.2)  
+  #%>%filter_low_var(pct = 0.999, type = "median")
   #filter_RNA_seq(min_count = 5, method = "mean") %>%
  
 
@@ -374,8 +411,8 @@ SummarizedExperiment::SummarizedExperiment(
 GWENA_net <- build_net(GWENA_input, 
                        cor_func = "spearman",
                        network_type = "signed",
-                       power_value = 12,
-                       block_size = 5000,
+                       power_value = 20,
+                       #block_size = 5000,
                        n_threads = 4)
 
 # Power selected :
@@ -390,7 +427,7 @@ fit_power_table <- GWENA_net$metadata$fit_power_table
 GWENA_modules <- detect_modules(GWENA_input, 
                             GWENA_net$network, 
                             detailled_result = TRUE,
-                            merge_threshold = 0.8)
+                            merge_threshold = 0.9)
 
 
 GWENA_modules_gene_count_plot <-
@@ -402,12 +439,12 @@ GWENA_modules_gene_count_plot
 
 
 
-GWENA_enrichment <- bio_enrich(GWENA_modules$modules)
-GWENA_encrichment_plot <- plot_enrichment(GWENA_enrichment)
-GWENA_encrichment_plot
-
-
-plot_expression_profiles(GWENA_input, GWENA_modules$modules)
+# GWENA_enrichment <- bio_enrich(GWENA_modules$modules)
+# GWENA_encrichment_plot <- plot_enrichment(GWENA_enrichment)
+# GWENA_encrichment_plot
+# 
+# 
+# plot_expression_profiles(GWENA_input, GWENA_modules$modules)
 
 
 # With data.frame/matrix
@@ -423,7 +460,7 @@ GWENA_phenotype_association <- plot_modules_phenotype(phenotype_association)
 
 GWENA_phenotype_association
 
-GWENA_net$network %>% GWENA::get_hub_high_co(GWENA_modules$modules[c(parse_number(GWENA_sig_modules))], 
+GWENA_hub_genes <- GWENA_net$network %>% GWENA::get_hub_high_co(GWENA_modules$modules[c(parse_number(GWENA_sig_modules))], 
                                        top_n = 10)
 
 ```
