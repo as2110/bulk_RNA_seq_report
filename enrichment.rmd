@@ -24,7 +24,7 @@ source("R_functions/read_data.R", local = knitr::knit_global())
 
 ```{r FGSEA table, echo=FALSE, fig.height=10, fig.width=10, message=FALSE, warning=FALSE, paged.print=FALSE}
 
-GSEA <- GSEA_plots(pathways = "Kegg", Plot_title, Control, Test, res =  paste0(results_dir, "deseq2_results_annotated.tsv"))
+GSEA <- GSEA_plots(pathways = "kegg", Plot_title, Control, Test, res =  paste0(results_dir, "deseq2_results_annotated.tsv"))
 
 GSEA[[1]]
 
@@ -440,7 +440,8 @@ my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
 
 
 # Plot
-pheatmap(sample_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
+pheatmap(sample_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) %>% ggplotify::as.ggplot()
+ggsave(paste0(plots_dir, "top50_mat_TFs_decoupleR.png"), width = 10, height = 4, units = "in")
 
 ```
 

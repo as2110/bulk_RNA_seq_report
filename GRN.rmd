@@ -65,12 +65,12 @@ cemitool_results <- cemitool(cemitool_input,
                              gmt = gmt_in, 
                              interactions = int_df, 
                              filter = TRUE,
-                             filter_pval = 0.1,
+                             #filter_pval = 0.1,
                              #apply_vst = TRUE,
                              n_genes = 4000,
                              #apply_vst = TRUE,
-                             set_beta = 18,
-                             #force_beta = TRUE, 
+                             #set_beta = 18,
+                             force_beta = TRUE, 
                              class_column = deseq2_design_condition,
                              network_type = "signed",
                              verbose = TRUE)
@@ -81,10 +81,10 @@ invisible(gc())
 CEMiTool_sig_modules <- CEMiTool::gsea_data(cemitool_results)[[3]] %>% filter(.data[[Control]] < 0.05) %>% pull(pathway)
 
 
-CEMiTool_hub_genes <- CEMiTool::get_hubs(cemitool_results, 20)[CEMiTool_sig_modules]
+CEMiTool_hub_genes <- CEMiTool::get_hubs(cemitool_results, 25)[CEMiTool_sig_modules]
 
 
-generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report_01_4000genes"))
+generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report_01_8000genes"))
 
 
 
@@ -553,10 +553,12 @@ Regenrich_object = RegenrichSet(expr = regenrich_input, # expression data (matri
 
 
 Regenrich_results_COEN = regenrich_diffExpr(Regenrich_object) %>% 
-  regenrich_network() %>% 
+  regenrich_network(BPPARAM = bpparam) %>% 
   regenrich_enrich() %>% 
-  regenrich_rankScore() %>%
-  results_score()
+  regenrich_rankScore() 
+  
+
+Regenrich_results_COEN_results <- results_score(Regenrich_results_COEN)
 
 
 
@@ -570,15 +572,15 @@ bpparam = register(MulticoreParam(workers = 4, RNGseed = 1234))
 
 invisible(gc())
 
-object3 = 
+Regenrich_results_GRN = 
   regenrich_diffExpr(Regenrich_object) %>% 
   regenrich_network(networkConstruction = "GRN",
-                            BPPARAM = bpparam, minR = 0.3) 
+                            BPPARAM = bpparam, minR = 0.4) 
 
 # Obtaining results
 #Regenrich_results = results_score(object)
 invisible(gc())
-Regenrich_results_GRN = object3 %>%
+Regenrich_results_GRN_results = Regenrich_results_GRN %>%
   regenrich_enrich() %>% 
   regenrich_rankScore() %>%
   results_score()
@@ -646,7 +648,6 @@ corto_regulon <- corto(Corto_input,
 
 
 corto_regulon[1:10]
-
 ```
 
 ### Kboost - tbd

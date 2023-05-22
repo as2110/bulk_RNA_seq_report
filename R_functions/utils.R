@@ -1208,17 +1208,31 @@ GSEA_plots <-  function(pathways,
   HS_CP_KEGG <- msigdbr(species = "Homo sapiens", category = "C2", subcategory = "CP:KEGG")
   HS_CP_KEGG <- split(x = HS_CP_KEGG$gene_symbol, f = HS_CP_KEGG$gs_name)
 
+  ##GOBP GENE SETS
+  GO_BP <- msigdbr(species = "Homo sapiens", category = "C5", subcategory = "GO:BP")
+  GO_BP <- split(x = GO_BP$gene_symbol, f = GO_BP$gs_name)
+
+  ##GOBP GENE SETS
+  GO_MF <- msigdbr(species = "Homo sapiens", category = "C5", subcategory = "GO:MF")
+  GO_MF <- split(x = GO_MF$gene_symbol, f = GO_MF$gs_name)
+
+  ##GOBP GENE SETS
+  GO_CC <- msigdbr(species = "Homo sapiens", category = "C5", subcategory = "GO:CC")
+  GO_CC <- split(x = GO_CC$gene_symbol, f = GO_CC$gs_name)
+
+  ##GO_all
+  GO_ALL <- c(GO_CC, GO_BP, GO_MF)
 
   ##Choose gene sets list
   #pathways <- HS_HALLMARK
   c <- str_to_upper(pathways)
-  pathway_dbs <- list("HS_HALLMARK" = HS_HALLMARK, "HS_CP_KEGG" = HS_CP_KEGG, "HS_CP_REACTOME" = HS_CP_REACTOME)
-  a <-c("HS_HALLMARK", "HS_CP_KEGG", "HS_CP_REACTOME")
+  pathway_dbs <- list("HS_HALLMARK" = HS_HALLMARK, "HS_CP_KEGG" = HS_CP_KEGG, "HS_CP_REACTOME" = HS_CP_REACTOME, "GO_BP" = GO_BP, "GO_CC" = GO_CC, "GO_MOF" = GO_MF, "GO_ALL" = GO_ALL)
+  a <-c("HS_HALLMARK", "HS_CP_KEGG", "HS_CP_REACTOME", "GO_BP", "GO_CC", "GO_MOF", "GO_ALL")
   b <- a[str_which(a, str_to_upper(pathways))]
   pathways <- pathway_dbs[[b]]
   ##GSEA analysis using the "ranks" table against the pathways in the database.
 
-  fgseaRes <- fgsea(pathways, ranks, minSize=15, maxSize = 500, nperm=1000)
+  fgseaRes <- fgsea(pathways, ranks, minSize=15, maxSize = 500, nperm=2000)
 
 
 
@@ -1263,10 +1277,12 @@ GSEA_plots <-  function(pathways,
     column_spec(2, color = "white", background = ifelse(fgseaResTidy$Normalised_Enrichment_Score < 0, "red", "green")) %>% footnote("Using Kable")
 
 
-
+  ##fgseaResTidy %>% dplyr::arrange(abs(Normalised_Enrichment_Score)) %>% head(25) %>% dplyr::arrange(desc(Normalised_Enrichment_Score))
+  FGSEA_plot_selection <- bind_rows(fgseaResTidy %>% dplyr::arrange(desc(Normalised_Enrichment_Score)) %>% head(10),
+  fgseaResTidy %>% dplyr::arrange((Normalised_Enrichment_Score)) %>% head(10)) %>% unique()
   ###Plots enrichment scores
 
-  FGSEA_plot <- (ggbarplot(fgseaResTidy %>% dplyr::arrange(abs(Normalised_Enrichment_Score)) %>% head(25) %>% dplyr::arrange(desc(Normalised_Enrichment_Score)),
+  FGSEA_plot <- (ggbarplot(FGSEA_plot_selection,
                            x = "Pathway",
                            y = "Normalised_Enrichment_Score",
                            fill = "Adjusted_p_value",
@@ -1278,7 +1294,7 @@ GSEA_plots <-  function(pathways,
                            size = 1,
                            width = 1,
   )
-  + scale_x_discrete(labels = function(x) str_wrap(x, 15))
+  + scale_x_discrete(labels = function(x) str_wrap(x, 30))
 
   + scale_fill_steps(
     low = "#132B43",
@@ -1577,8 +1593,10 @@ clusterProfiler_Plots <- function(res = paste0(results_dir, "deseq2_results_anno
 ### make heatmap ####
 make_heatmap <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv"),
                          pathways,
+                         sub_pathway,
                          vsd = DeSeq2_return[["vsd"]],
-                         title = Plot_title
+                         title = Plot_title,
+                         specific_tfs = NULL
 ) {
 
   results_annotated <- read.delim(res)
@@ -1605,17 +1623,27 @@ make_heatmap <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv
 
   ##Choose gene sets list
   #pathways <- HS_HALLMARK
-  pathway_dbs <- list("HS_HALLMARK" = HS_HALLMARK, "HS_CP_KEGG" = HS_CP_KEGG, "HS_CP_REACTOME" = HS_CP_REACTOME)
-  a <-c("HS_HALLMARK", "HS_CP_KEGG", "HS_CP_REACTOME")
-  b <- a[str_which(a, str_to_upper(pathways))]
-  pathways <- pathway_dbs[[b]]
+  if (!is.null(pathways)) {
+    pathway_dbs <- list("HS_HALLMARK" = HS_HALLMARK, "HS_CP_KEGG" = HS_CP_KEGG, "HS_CP_REACTOME" = HS_CP_REACTOME)
+    a <-c("HS_HALLMARK", "HS_CP_KEGG", "HS_CP_REACTOME")
+    b <- a[str_which(a, str_to_upper(pathways))]
+    pathways <- pathway_dbs[[b]]
+    sub_pathway <- names(pathways)[str_which(names(pathways), str_to_upper(sub_pathway))]
+    my_genes <- dplyr::filter(results_annotated, hgnc_symbol %in% pathways[[sub_pathway]]) %>%
+      pull(ensembl_gene_id)
+    caption <- b
+  }
+
 
 
 
   ##First create a list of genes by identifying all the genes in the de-seq results table that are in the chosen Pathway.
+  if (!is.null(specific_tfs)) {
+    my_genes <- dplyr::filter(results_annotated, hgnc_symbol %in% specific_tfs) %>%
+      pull(ensembl_gene_id)
+    caption <- "Selected genes"
+  }
 
-  my_genes <- dplyr::filter(results_annotated, hgnc_symbol %in% pathways[["REACTOME_TRANSLATION"]]) %>%
-    pull(ensembl_gene_id)
 
   #my_genes <- head(my_genes, 50)
 
@@ -1657,11 +1685,16 @@ make_heatmap <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv
 
 
   my_colour <- list(Samples = c("#5977ff", "#f74747"))
-  names(my_colour$Samples) <- c(Control, Test)
+  names(my_colour) <- deseq2_design_condition
+  names(my_colour[[deseq2_design_condition]]) <- c(Control, Test)
 
     #Batch = c("1" = "#82ed82", "2" = "#9e82ed"),
     #gleason_Score = c("G6" = "#e89829", "G9" = "#cc4ee0", "Normal" = "royal blue")
+  palette_length = 10
+  my_palette = colorRampPalette(c("darkgreen", "white","red"))(palette_length)
 
+  my_breaks <- c(seq(-5, 0, length.out=ceiling(palette_length/2) + 1),
+                 seq(0.05, 5, length.out=floor(palette_length/2)))
 
 
 
@@ -1669,10 +1702,13 @@ make_heatmap <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv
                    annotation_col = sampleinfo_for_gsea,
                    annotation_colors = my_colour,
                    #main = "Default Heatmap",
-                   color = colorRampPalette(c("dark red", "white", "dark green"))(2),
+                   ##color = colorRampPalette(c("dark red", "white", "dark green"))(10),
                    #color = inferno(length(mat_breaks) - 1),
                    #breaks = seq(min(mat), max(mat), length.out = 3),
-                   breaks = c(min(mat), 0, max(mat)),
+                   #breaks = c(min(mat), 0, max(mat)),
+                   breaks = my_breaks,
+                   name = "Normalised expression",
+                   color = my_palette,
                    cellheight = 5,
                    show_colnames     = TRUE,
                    show_rownames     = TRUE,
@@ -1687,7 +1723,7 @@ make_heatmap <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv
            ylab = FALSE,
            title = title,
            subtitle = paste(Control, "vs", Test),
-           caption = b,
+           caption = caption,
            font.title = c("bold", "brown", 18),
            font.subtitle = c("bold", "dark grey", 14),
            font.caption = c("bold.italic", "royal blue", 10),
