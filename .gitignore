@@ -37,7 +37,7 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
-
+/*.tsv
 /genes.tsv
 /omnipathr-log/*
 /kallisto_input/*

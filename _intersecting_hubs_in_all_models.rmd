@@ -1,0 +1,355 @@
+---
+title: "Untitled"
+author: "Anand Srinivasan"
+date: "19/05/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(XGR)
+library(Pi)
+library(pathfindR)
+AMo1_car_dir <- "AMO1_WT_vs_Carfilzomib"
+AMo1_bor_dir <- "AMO1_WT_vs_Bortezomib"
+L363_car_dir <- "L363_WT_vs_Carfilzomib"
+
+AMO1_deseq_car <- read.delim(file = file.path("results", AMo1_car_dir, "deseq2_results_annotated.tsv"))
+AMO1_deseq_bor <- read.delim(file = file.path("results", AMo1_bor_dir, "deseq2_results_annotated.tsv"))
+L363_deseq_car <- read.delim(file = file.path("results", L363_car_dir, "deseq2_results_annotated.tsv"))
+
+
+xgr_eterm_from_degs <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv"), pathways = "DO", FC = 1, p=0.05, structured = FALSE) {
+  
+  results_annotated <- res
+  if (FC < 0) {xgr_data <- results_annotated %>%
+    dplyr::filter(padj < p, log2FoldChange < FC
+                  #!is.na(ENSEMBL)
+    ) 
+  }
+
+  if (FC > 0) {xgr_data <- results_annotated %>%
+    dplyr::filter(padj < p, log2FoldChange > FC
+                  #!is.na(ENSEMBL)
+    ) 
+  }
+  
+  data <- xgr_data %>% 
+  dplyr::filter(!is.na(hgnc_symbol) & !duplicated(hgnc_symbol))%>%
+  dplyr::pull(hgnc_symbol)
+background <- results_annotated %>% 
+  dplyr::filter(!is.na(hgnc_symbol) & !duplicated(hgnc_symbol)) %>%
+  dplyr::pull(hgnc_symbol)
+ontology.algorithm <- ifelse(structured, "lea", "none")
+ontology <- list("KEGG" = "MsigdbC2KEGG", "Reactome" = "MsigdbC2REACTOME", "DO" = "DO", "Hallmark"= "MsigdbH", "Druggable" = "DGIdb", "All" = "MsigdbC2CPall", GOMF = "GOMF", GOBP = "GOBP", GOCC = "GOCC", CGP = "MsigdbC2CGP", Canonical = "MsigdbC2CP")
+eTerm <- xEnricherGenes(data=data, background=background, ontology= ontology[[pathways]], ontology.algorithm = ontology.algorithm)
+
+eTerm_concise <- xEnrichConciser(eTerm)
+
+return(eTerm_concise)  
+}
+
+amo_car_eterm_reactome <- xgr_eterm_from_degs(AMO1_deseq_car,  "CGP", -1, 0.05, FALSE)
+amo_bor_eterm_reactome <- xgr_eterm_from_degs(AMO1_deseq_bor,  "CGP", -1, 0.05, FALSE)
+l363_car_eterm_reactome <- xgr_eterm_from_degs(L363_deseq_car,  "CGP", -1, 0.05, FALSE)
+
+
+list_eTerm <- list(amo_car_eterm_reactome, amo_bor_eterm_reactome, l363_car_eterm_reactome)
+names(list_eTerm) <- c('AMO1 Car DOWN', 'AMO1 Bor DOWN', 'L363 Car DOWN')
+bp_Pathway <- xEnrichCompare(list_eTerm, displayBy="fc", FDR.cutoff=1e-2, wrap.width=50, sharings = 3)
+bp_Pathway + theme(axis.text.y=element_text(size=10))
+
+ggsave(paste0(plots_dir, "PI_resistant_MSigDb_CGP_pathways_DOWN.png"), height = 6)
+
+
+
+amo_car_eterm_go <- xgr_eterm_from_degs(AMO1_deseq_car,  "GOBP", -1, 0.05, TRUE)
+amo_bor_eterm_go <- xgr_eterm_from_degs(AMO1_deseq_bor,  "GOBP", -1, 0.05, TRUE)
+l363_car_eterm_go <- xgr_eterm_from_degs(L363_deseq_car,  "GOBP", -1, 0.05, TRUE)
+
+
+list_eTerm <- list(amo_car_eterm_go, amo_bor_eterm_go, l363_car_eterm_go)
+names(list_eTerm) <- c('AMO1 Car DOWN', 'AMO1 Bor DOWN', 'L363 Car DOWN')
+bp_Pathway <- xEnrichCompare(list_eTerm, displayBy="fc", FDR.cutoff=1e-2, wrap.width=50, sharings = NULL)
+bp_Pathway + theme(axis.text.y=element_text(size=10))
+
+ggsave(paste0(plots_dir, "PI_resistant_GOBP_down.png"), height = 20)
+```
+
+
+
+```{r common_genes}
+library(ggVennDiagram)
+
+common_degs <- function(res = list("A" = results_annotated), FC = 1, p=0.05) {
+  degs <- list()
+  #names(degs) <- names(res)
+  for (table in names(res)) {
+    if (FC < 0) {data <- res[[table]] %>%
+    dplyr::filter(padj < p, log2FoldChange < FC
+                  #!is.na(ENSEMBL)
+    ) 
+  }
+
+  if (FC > 0) {data <- res[[table]] %>%
+    dplyr::filter(padj < p, log2FoldChange > FC
+                  #!is.na(ENSEMBL)
+    ) 
+  }
+    degs[[table]] <- data$hgnc_symbol
+  }
+  
+  return(degs)
+  
+}
+
+list_res <- list(AMO1_deseq_car, AMO1_deseq_bor, L363_deseq_car)
+names(list_res) <- c('AMO1 Car UP', 'AMO1 Bor UP', 'L363 Car UP')
+
+common_up_degs <- common_degs(list_res, FC=1, p=0.05)
+
+names(list_res) <- c('AMO1 Car Down', 'AMO1 Bor Down', 'L363 Car Down')
+common_down_degs <- common_degs(list_res, FC=-1, p=0.05)
+#common_up_degs
+common_degs_venn_up <- ggVennDiagram(common_up_degs, category.names = str_wrap(names(common_up_degs), 5)) + scale_fill_gradient(low="blue",high = "red")
+common_degs_venn_up
+ggsave(filename =  paste0(plots_dir, "UPsig_Genes_plot.png"), width = 7, height = 8, units = "in")
+common_degs_venn_down <- ggVennDiagram(common_down_degs, category.names =  str_wrap(names(common_down_degs), 5)) + scale_fill_gradient(low="blue",high = "red")
+common_degs_venn_down
+ggsave(filename =  paste0(plots_dir, "DOWNsig_Genes_plot.png"), width = 7, height = 8, units = "in")
+
+
+UpSigGenes <- Reduce(intersect, common_up_degs)
+write.table(UpSigGenes, row.names = FALSE, col.names = FALSE, quote = FALSE, "common_up_degs.txt")
+
+DownSigGenes <- Reduce(intersect, common_down_degs) 
+write.table(DownSigGenes, row.names = FALSE, col.names = FALSE, quote = FALSE, "common_down_degs.txt")
+
+
+
+```
+
+
+
+```{r}
+library(enrichR)
+#invisible(gc())
+setEnrichrSite("Enrichr") # Human genes
+dbs <- listEnrichrDbs()
+dbs <- c("GO_Biological_Process_2021",
+         "GO_Cellular_Component_2021",
+         "GO_Molecular_Function_2021",
+         "Reactome_2022", 
+         "ChEA_2022", 
+         "KEGG_2021_Human",
+         "WikiPathway_2021_Human")
+
+res <- paste0(results_dir, "deseq2_results_annotated.tsv")
+results_annotated <- read.delim(res)
+
+universe <- results_annotated %>% pull(hgnc_symbol)
+
+
+UPenriched <- enrichr(UpSigGenes, dbs)
+DOWNenriched <- enrichr(DownSigGenes, dbs) 
+
+enrichR_plot <- list()
+for (i in 1:length(dbs)) {
+  enrichR_plot[[i]] <- plotEnrich(UPenriched[[i]], showTerms = 5, numChar = 40, y = "Count", orderBy = "Combined.Score")
+  enrichR_plot[[i+length(dbs)]] <- plotEnrich(DOWNenriched[[i]], showTerms = 5, numChar = 100, y = "Count", orderBy = "Combined.Score")
+}
+
+
+```
+
+
+##Upregulated Pathways
+```{r enricher plots, fig.height=5, fig.width=7}
+
+
+for (i in 1:length(dbs)) {
+  enrichR_plot[[i]] <- enrichR_plot[[i]] + scale_x_discrete(label = function(x) str_wrap(x, width = 10))
+  print(enrichR_plot[[i]])
+  ggsave(filename =  paste0(plots_dir, "Combined_three_Cell", "_overrepresented_", dbs[i], "_Enricher", "_plot.png"), width = 7, height = 7, units = "in")
+
+}
+
+```
+
+
+##Downregulated Pathway
+
+
+```{r enricher plots2, fig.height=5, fig.width=7, message=FALSE, warning=FALSE}
+
+for (i in 1:length(dbs)) {
+  enrichR_plot[[i+length(dbs)]] <- enrichR_plot[[i+length(dbs)]] + scale_x_discrete(label = function(x) str_wrap(x, width = 10))
+  print(enrichR_plot[[i+length(dbs)]])
+  ggsave(filename =  paste0(plots_dir, "Combined_three_Cell", "_underrepresented_", dbs[i], "_Enricher", "_plot.png"), width = 7, height = 7, units = "in")
+}
+
+```
+
+
+## combined pathfinder charts
+
+```{r}
+
+L363_car_pathfindR_output_Biogrid_Reactome <- readRDS(file=paste0(results_dir, "L363_Car_pathfindR_output_Biogrid_Reactome.RDS"))
+AMO1_car_pathfindR_output_Biogrid_Reactome <- readRDS(file=paste0("results/AMO1_WT_vs_Carfilzomib/", "AMO1_car_pathfindR_output_Biogrid_Reactome.RDS"))
+AMO1_bor_pathfindR_output_Biogrid_Reactome <- readRDS(file=paste0("results/AMO1_WT_vs_Bortezomib/", "AMO1_bor_pathfindR_output_Biogrid_Reactome.RDS"))
+
+
+combined_pathfindR_results_Car <- combine_pathfindR_results(
+  result_A = AMO1_bor_pathfindR_output_Biogrid_Reactome,
+  result_B = AMO1_car_pathfindR_output_Biogrid_Reactome,
+  plot_common = FALSE
+) %>% drop_na()
+
+combined_results_graph(combined_pathfindR_results_Car,
+                       use_description = TRUE,
+                       selected_terms = combined_pathfindR_results_Car$Term_Description[3])
+```
+
+
+## intersecting venn diagrams
+
+
+```{r}
+library(ggVennDiagram)
+AMo1_car_dir <- "AMO1_WT_vs_Carfilzomib"
+AMo1_bor_dir <- "AMO1_WT_vs_Bortezomib"
+L363_car_dir <- "L363_WT_vs_Carfilzomib"
+
+
+AMo1_car_hubs <- read.table(file = file.path("results", AMo1_car_dir, "All_top_hubs.txt")) %>% pull()
+AMo1_bor_hubs <- read.table(file = file.path("results", AMo1_bor_dir, "All_top_hubs.txt")) %>% pull()
+L363_car_hubs <- read.table(file = file.path("results", L363_car_dir, "All_top_hubs.txt")) %>% pull()
+
+
+AMo1_car_TFs <- read.table(file = file.path("results", AMo1_car_dir, "All_top_TFs.txt")) %>% pull()
+AMo1_bor_TFs <- read.table(file = file.path("results", AMo1_bor_dir, "All_top_TFs.txt")) %>% pull()
+L363_car_TFs <- read.table(file = file.path("results", L363_car_dir, "All_top_TFs.txt")) %>% pull()
+
+
+
+common_tfs_venn<- ggVennDiagram(list(AMO1_Car = AMo1_car_TFs, AMo1_Bor = AMo1_bor_TFs, L363_Car = L363_car_TFs)) + scale_fill_gradient(low="blue",high = "red")
+common_tfs_venn
+
+
+common_hubs_venn<- ggVennDiagram(list(AMO1_Car = AMo1_car_hubs, AMo1_Bor = AMo1_bor_hubs, L363_Car = L363_car_hubs)) + scale_fill_gradient(low="blue",high = "red")
+common_hubs_venn
+
+Hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_hubs, AMo1_Bor = AMo1_bor_hubs, L363_Car = L363_car_hubs))
+TFs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_TFs, AMo1_Bor = AMo1_bor_TFs, L363_Car = L363_car_TFs))
+
+
+L363_car_intersecting_hubs <- read.table(file.path("C:/Users/asrinivasan/Downloads", "L363_Carfilzomib_intersecting_hubs.txt")) %>% pull()
+AMO1_bor_intersecting_hubs <- read.table(file.path("C:/Users/asrinivasan/Downloads", "AMO1_Bortezomib_intersecting_hubs.txt")) %>% pull()
+AMO1_car_intersecting_hubs <- read.table(file.path("C:/Users/asrinivasan/Downloads", "AMO1_Carfilzomib_intersecting_hubs.txt")) %>% pull()
+
+
+
+Reduce(intersect, list(L363_car_intersecting_hubs, AMO1_bor_intersecting_hubs, AMO1_car_intersecting_hubs))
+
+intersect(UpSigGenes, L363_car_intersecting_hubs)
+intersect(UpSigGenes, AMO1_bor_intersecting_hubs)
+intersect(UpSigGenes, AMO1_car_intersecting_hubs)
+intersect(DownSigGenes, L363_car_intersecting_hubs)
+intersect(DownSigGenes, AMO1_bor_intersecting_hubs)
+intersect(DownSigGenes, AMO1_car_intersecting_hubs)
+
+
+
+intersect(UpSigGenes, TF_list)
+intersect(DownSigGenes, TF_list)
+```
+
+
+## top TFs in all 3 models in Volcano plot
+
+```{r}
+a <- collectri_net %>% 
+    filter(source %in% c("ZNF300", "SOX2", "ETS1")) %>%
+    filter(weight > 0) %>%
+    pull(target) %>% unique()
+b <- collectri_net %>% 
+    filter(source %in% c("POU3F2", "SOX2", "ETS1", "KLF6")) %>%
+    filter(weight < 0) %>%
+    pull(target) %>% unique()
+c <- c(rep("green", length(a)), rep("red", length(b)))
+names(c) <- c(a, b)
+Volcano_Plots(de_seq = DeSeq2_return$de_seq, 
+              test = Test, 
+              res = DeSeq2_return$res, 
+              labels = TRUE,
+              title = "Up regulated TFs targets",
+              pval = pvalue_VP, 
+              label_list = c("POU3F2", "SOX2", "ETS1", "KLF6"),
+              filter_specific = c(a, b),
+              color_specific = c,
+              FC = 1)
+
+```
+
+
+## Heatmaps of intersecting hubs
+
+```{r}
+AMo1_car_dir <- "AMO1_WT_vs_Carfilzomib"
+AMo1_bor_dir <- "AMO1_WT_vs_Bortezomib"
+L363_car_dir <- "L363_WT_vs_Carfilzomib"
+
+
+AMo1_car_hubs <- read.table(file = file.path("results", AMo1_car_dir, "All_top_hubs.txt")) %>% pull()
+AMo1_bor_hubs <- read.table(file = file.path("results", AMo1_bor_dir, "All_top_hubs.txt")) %>% pull()
+L363_car_hubs <- read.table(file = file.path("results", L363_car_dir, "All_top_hubs.txt")) %>% pull()
+
+
+AMo1_car_TFs <- read.table(file = file.path("results", AMo1_car_dir, "All_top_TFs.txt")) %>% pull()
+AMo1_bor_TFs <- read.table(file = file.path("results", AMo1_bor_dir, "All_top_TFs.txt")) %>% pull()
+L363_car_TFs <- read.table(file = file.path("results", L363_car_dir, "All_top_TFs.txt")) %>% pull()
+
+
+AMo1_car_intersecting_hubs <- read.table(file = file.path("results", AMo1_car_dir, "intersecting_hubs.txt")) %>% pull()
+AMo1_bor_intersecting_hubs <- read.table(file = file.path("results", AMo1_bor_dir, "intersecting_hubs.txt")) %>% pull()
+L363_car_intersecting_hubs <- read.table(file = file.path("results", L363_car_dir, "intersecting_hubs.txt")) %>% pull()
+
+Hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_hubs, AMo1_Bor = AMo1_bor_hubs, L363_Car = L363_car_hubs))
+TFs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_TFs, AMo1_Bor = AMo1_bor_TFs, L363_Car = L363_car_TFs))
+Intersecting_hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_intersecting_hubs, AMo1_Bor = AMo1_bor_intersecting_hubs, L363_Car = L363_car_intersecting_hubs))
+
+#intersect(Hubs_in_all_three, TFs_in_all_three)
+make_heatmap(specific_tfs = TFs_in_all_three[1:25], pathways = NULL)
+make_heatmap(specific_tfs = Intersecting_hubs_in_all_three, pathways = NULL)
+#AMO1_deseq_bor <- read.delim(file = file.path("results", AMo1_bor_dir, "deseq2_results_annotated.tsv"))
+#L363_deseq_car <- read.delim(file = file.path("results", L363_car_dir, "deseq2_results_annotated.tsv"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
