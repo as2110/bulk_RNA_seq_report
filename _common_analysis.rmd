@@ -1,0 +1,267 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-05-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#CeTF
+RIF_common_TFs <- RIF_table$TF
+
+#RCis
+Rcis_up_TFs <- motifEnrichmentTable_wGenes[motifEnrichmentTable_wGenes[ , geneSet == "CarUp"]] %>% dplyr::pull(TF_highConf) %>% str_replace_all(" \\s*\\([^\\)]+\\). ", "") %>%
+  str_split("; ") %>% unlist() %>% unique()
+Rcis_down_TFs <- motifEnrichmentTable_wGenes[motifEnrichmentTable_wGenes[ , geneSet == "CarDown"]] %>% dplyr::pull(TF_highConf) %>% str_replace_all(" \\s*\\([^\\)]+\\). ", "") %>%
+  str_split("; ") %>% unlist() %>% unique()
+Rcis_common_TFs <- RcisTarget_TFs
+
+#TFEA CHIP
+TFEA_CHIP_identified_TFs <-unique(c(TFEA_Chip_GSEA_enriched_TFs, TFEA_Chip_ranked_TFs))
+
+## chea3
+chea3_top_hits$TF
+
+##decounpleR
+decoupleR_deg_top50_variable_TFs
+decoupleR_mat_top50_variable_TFs
+
+
+make_heatmap(specific_tfs = decoupleR_mat_top50_variable_TFs, pathways = NULL)
+make_heatmap(specific_tfs = intersect(decoupleR_mat_top50_variable_TFs,decoupleR_deg_top50_variable_TFs), pathways = NULL)
+make_heatmap(specific_tfs = chea3_top_hits$TF[1:40], pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "_Chea3_TFs.png"), height = 7)
+make_heatmap(specific_tfs = Rcis_common_TFs, pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "_RCis_TFs.png"), height = 7)
+
+### All top TFs
+All_top_TFs <- c(RIF_common_TFs, Rcis_common_TFs, TFEA_CHIP_identified_TFs, chea3_top_hits$TF[1:100], decoupleR_deg_top50_variable_TFs, decoupleR_mat_top50_variable_TFs) %>% unique()
+write.table(All_top_TFs, row.names = FALSE, quote = FALSE, col.names = FALSE, file = paste0(results_dir, "All_top_TFs.txt"))
+
+
+```
+
+
+
+```{r}
+##bionero
+bionero_grn_hubs
+make_heatmap(specific_tfs = bionero_grn_hubs$Gene[1:50], pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "_GRN_enriched_hub_genes.png"), height = 8)
+
+
+make_heatmap(specific_tfs = bioNERO_gcn_hubs %>% filter(Module == "magenta") %>% pull(Gene) %>% head(75), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title,"_bionero__gcn_enriched_hub_genes.png"), height = 10)
+
+#bioNERO_gcn_hubs
+
+#GWENA
+GWENA_gcn_hub_genes <- c()
+for (i in 3:length(GWENA_sig_modules)) {
+  GWENA_gcn_hub_genes <- c(GWENA_gcn_hub_genes, names(GWENA_hub_genes[[i]]))
+  make_heatmap(specific_tfs = names(GWENA_hub_genes[[i]]), pathways = NULL)
+  a <- paste0("_GWENA_ME", i, ".png")
+  ggsave(paste0(plots_dir, Plot_title, a), height = 6)
+
+}
+make_heatmap(specific_tfs = GWENA_gcn_hub_genes, pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title,"_GWENA_modules_3_6.png"), height = 8)
+
+## WGCNA
+ME3 <- gene_module_key %>% filter(module == "ME3") %>% pull(gene)
+make_heatmap(specific_tfs = ME3, pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title,"_WGCNA_module_ME3.png"), height = 20)
+
+# ME4 <- gene_module_key %>% filter(module == "ME4") %>% pull(gene)
+# make_heatmap(specific_tfs = ME4, pathways = NULL)
+# ggsave(paste0(plots_dir, Plot_title,"_WGCNA_module_ME4.png"), height = 12)
+# ME16 <- gene_module_key %>% filter(module == "ME16") %>% pull(gene)
+# make_heatmap(specific_tfs = ME16, pathways = NULL)
+# ggsave(paste0(plots_dir, Plot_title,"_WGCNA_module_ME16.png"), height = 12)
+# ME9 <- gene_module_key %>% filter(module == "ME9") %>% pull(gene)
+# make_heatmap(specific_tfs = ME9, pathways = NULL)
+# ggsave(paste0(plots_dir, Plot_title,"_WGCNA_module_ME9.png"), height = 16)
+
+## CEMItool
+make_heatmap(specific_tfs = CEMiTool::get_hubs(cemitools_results_4000, 50)[[1]] %>% names(), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "CEMiTool_m1.png"), height = 6)
+make_heatmap(specific_tfs = CEMiTool::get_hubs(cemitools_results_4000, 50)[[2]] %>% names(), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "CEMiTool_m2.png"), height = 6)
+make_heatmap(specific_tfs = CEMiTool::get_hubs(cemitools_results_4000, 50)[[3]] %>% names(), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "CEMiTool_m3.png"), height = 6)
+make_heatmap(specific_tfs = CEMiTool::get_hubs(cemitools_results_4000, 50)[[4]] %>% names(), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "CEMiTool_m4.png"), height = 6)
+## REGENRCIH
+
+make_heatmap(specific_tfs = Regenrich_results_COEN_results$reg[1:50], pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "RegEnrich_COEN.png"), height = 6)
+
+make_heatmap(specific_tfs = Regenrich_results_GRN$reg[1:50], pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "RegEnrich_GRN.png"), height = 6)
+
+make_heatmap(specific_tfs = c(Regenrich_results_COEN_results$reg[1:50], Regenrich_results_GRN$reg[1:50]) %>% unique(), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "RegEnrich_All.png"), height = 6)
+
+
+cemitools_gcn_hub_genes <- c()
+for (i in 2:length(CEMiTool_sig_modules)) {
+  cemitools_gcn_hub_genes <- c(cemitools_gcn_hub_genes, names(CEMiTool_hub_genes[[i]]))
+}
+ 
+## All top hubs
+
+All_top_hubs <- c(bionero_grn_hubs$Gene, cemitools_gcn_hub_genes, Regenrich_results_COEN_results$reg[1:50], Regenrich_results_GRN$reg[1:50]) %>% unique()
+write.table(All_top_hubs, row.names = FALSE, quote = FALSE, col.names = FALSE, file = paste0(results_dir, "All_top_hubs.txt"))
+
+
+intersecting_hubs <- intersect(All_top_hubs, All_top_TFs)
+write.table(intersecting_hubs, row.names = FALSE, quote = FALSE, col.names = FALSE, file = paste0(results_dir, Plot_title, "_", Test, "_intersecting_hubs.txt"))
+make_heatmap(specific_tfs = intersecting_hubs, pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "_intersecting_hub_TF_genes.png"), height = 6)
+```
+
+
+```{r}
+AMo1_car_dir <- "AMO1_WT_vs_Carfilzomib"
+AMo1_bor_dir <- "AMO1_WT_vs_Bortezomib"
+L363_car_dir <- "L363_WT_vs_Carfilzomib"
+
+
+AMo1_car_hubs <- read.table(file = file.path("results", AMo1_car_dir, "All_top_hubs.txt")) %>% pull()
+AMo1_bor_hubs <- read.table(file = file.path("results", AMo1_bor_dir, "All_top_hubs.txt")) %>% pull()
+L363_car_hubs <- read.table(file = file.path("results", L363_car_dir, "All_top_hubs.txt")) %>% pull()
+
+
+AMo1_car_TFs <- read.table(file = file.path("results", AMo1_car_dir, "All_top_TFs.txt")) %>% pull()
+AMo1_bor_TFs <- read.table(file = file.path("results", AMo1_bor_dir, "All_top_TFs.txt")) %>% pull()
+L363_car_TFs <- read.table(file = file.path("results", L363_car_dir, "All_top_TFs.txt")) %>% pull()
+
+
+AMo1_car_intersecting_hubs <- read.table(file = file.path("results", AMo1_car_dir, "intersecting_hubs.txt")) %>% pull()
+AMo1_bor_intersecting_hubs <- read.table(file = file.path("results", AMo1_bor_dir, "intersecting_hubs.txt")) %>% pull()
+L363_car_intersecting_hubs <- read.table(file = file.path("results", L363_car_dir, "intersecting_hubs.txt")) %>% pull()
+
+Hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_hubs, AMo1_Bor = AMo1_bor_hubs, L363_Car = L363_car_hubs))
+TFs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_TFs, AMo1_Bor = AMo1_bor_TFs, L363_Car = L363_car_TFs))
+Intersecting_hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_intersecting_hubs, AMo1_Bor = AMo1_bor_intersecting_hubs, L363_Car = L363_car_intersecting_hubs))
+
+#intersect(Hubs_in_all_three, TFs_in_all_three)
+make_heatmap(specific_tfs = TFs_in_all_three[1:25], pathways = NULL)
+make_heatmap(specific_tfs = Intersecting_hubs_in_all_three, pathways = NULL)
+#AMO1_deseq_bor <- read.delim(file = file.path("results", AMo1_bor_dir, "deseq2_results_annotated.tsv"))
+#L363_deseq_car <- read.delim(file = file.path("results", L363_car_dir, "deseq2_results_annotated.tsv"))
+```
+
+
+```{r}
+a <- collectri_net %>% 
+    filter(source %in% c("ZNF300", "SOX2", "ETS1")) %>%
+    filter(weight > 0) %>%
+    pull(target) %>% unique()
+b <- collectri_net %>% 
+    filter(source %in% c("POU3F2", "SOX2", "ETS1", "KLF6")) %>%
+    filter(weight < 0) %>%
+    pull(target) %>% unique()
+
+Volcano_Plots(de_seq = DeSeq2_return$de_seq, 
+              test = Test, 
+              res = DeSeq2_return$res, 
+              labels = TRUE,
+              title = "Up regulated TFs targets",
+              pval = pvalue_VP, 
+              label_list = c("POU3F2", "SOX2", "ETS1", "KLF6"),
+              filter_specific = c(a),
+              #color_specifc = c(Up = a, Down = b),
+              FC = 1)
+
+
+pathfindR_output_Biogrid_GO <- run_pathfindR(
+  pr_input,
+  gene_sets = "GO-All",
+  pin_name_path = "Biogrid",
+  min_gset_size = 5,
+  max_gset_size = 300,
+  output_dir = file.path(results_dir, "pathfindR_results_GO"),
+  visualize_enriched_terms = FALSE,
+  plot_enrichment_chart = FALSE
+)
+
+saveRDS(pathfindR_output_Biogrid_GO, file=paste0(results_dir, "pathfindR_output_Biogrid_GO_All.RDS"))
+
+exp_mat <- assay(DeSeq2_return$dds) %>%
+  as.data.frame() %>% 
+  rownames_to_column("id") %>% 
+   mutate(
+      hgnc_symbol = mapIds(
+        EnsDb.Hsapiens.v86,
+        keys = id,
+        #keytype = "SYMBOL",
+        #column = "GENEID"
+        keytype = "GENEID",
+        column = "SYMBOL"
+      ),
+      .before = 1
+    ) %>%
+    drop_na() %>%
+    dplyr::select(-id) %>%
+  column_to_rownames("hgnc_symbol") %>% as.matrix()
+
+pathfindR_GO_heatmap <- score_terms(enrichment_table = pathfindR_output_Biogrid_GO %>% head(30),
+                            exp_mat = exp_mat,
+                            cases = colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::filter(.data[[deseq2_design_condition]] == Test) %>% pull(SampleName) %>% as.character(),
+                            use_description = TRUE, # default FALSE
+                            label_samples = FALSE, # default = TRUE
+                            case_title = Test,  # default = "Case"
+                            control_title = Control, # default = "Control"
+                            low = "#f7797d", # default = "green"
+                            mid = "#fffde4", # default = "black"
+                            high = "#1f4037") # default = "red"
+
+
+a <- plot_scores(pathfindR_GO_heatmap, 
+            cases = colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::filter(.data[[deseq2_design_condition]] == Test) %>% pull(SampleName) %>% as.character(),
+                            label_samples = FALSE, # default = TRUE
+                            case_title = Test,  # default = "Case"
+                            control_title = Control, # default = "Control"
+                            low = "#f7797d", # default = "green"
+                            mid = "#fffde4", # default = "black"
+                            high = "#1f4037") # default = "red"
+
+a + scale_y_discrete(labels = function(x) str_wrap(x, 20))
+ggsave(paste0(plots_dir, Plot_title,"_pathfindR_GO_heatmap.png"), height = 12)
+
+```
+
+
+
+```{r}
+pathfindR_Reactome_heatmap <- score_terms(enrichment_table = pathfindR_output_Biogrid_Reactome %>% head(30),
+                            exp_mat = exp_mat,
+                            cases = colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::filter(.data[[deseq2_design_condition]] == Test) %>% pull(SampleName) %>% as.character(),
+                            use_description = TRUE, # default FALSE
+                            label_samples = FALSE, # default = TRUE
+                            case_title = Test,  # default = "Case"
+                            control_title = Control, # default = "Control"
+                            low = "#f7797d", # default = "green"
+                            mid = "#fffde4", # default = "black"
+                            high = "#1f4037") # default = "red"
+
+
+a <- plot_scores(pathfindR_Reactome_heatmap, 
+            cases = colData(DeSeq2_return$dds) %>% as.data.frame() %>% dplyr::filter(.data[[deseq2_design_condition]] == Test) %>% pull(SampleName) %>% as.character(),
+                            label_samples = FALSE, # default = TRUE
+                            case_title = Test,  # default = "Case"
+                            control_title = Control, # default = "Control"
+                            low = "#f7797d", # default = "green"
+                            mid = "#fffde4", # default = "black"
+                            high = "#1f4037") # default = "red"
+
+a + scale_y_discrete(labels = function(x) str_wrap(x, 20))
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "_pathfindR_Reactome_heatmap.png"), height = 12)
+
+```
+
