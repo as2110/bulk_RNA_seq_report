@@ -39,13 +39,15 @@ library(fgsea)
 #ORA
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 library(clusterProfiler)
+library(ReactomePA)
+library(DOSE)
 library(enrichplot)
 library(goseq)
 library(GOSemSim)
 library(enrichR)
 
 ## other GSEA
-library(Pi)
+#library(Pi)
 library(XGR)
 
 ##GRN
@@ -59,6 +61,7 @@ library(corto)
 library(httr)
 library(jsonlite)
 library("dorothea")
+library(OmnipathR)
 library("decoupleR")
 library(TFEA.ChIP)
 library(CeTF)
@@ -72,7 +75,7 @@ library(RcisTarget.hg19.motifDBs.cisbpOnly.500bp)
 #                         ))
 
 ### kallisto ####
-
+#BiocManager::install("rhdf5")
 check_kallisto <- function(){
 params <- read_yaml("config.yml")
 
@@ -1053,6 +1056,8 @@ Volcano_Plots <- function(de_seq,
   Low_colour <- resLFC$log2FoldChange < -FC & resLFC$padj < pval
 
   High_colour <- resLFC$log2FoldChange > FC & resLFC$padj < pval
+  resLFC <- resLFC %>%
+    mutate(padj = ifelse(padj < 1e-60, 1e-60, padj))
 
   keyvals <- ifelse(
     High_colour, 'dark green',
@@ -1086,16 +1091,16 @@ Volcano_Plots <- function(de_seq,
                              selectLab = labs,
                              #selectLab = ifelse(labels, resLFC$hgnc_symbol[which(names(keyvals) %in% c("high", "low"))], ""),
                              title = title,
-                             subtitle = paste0(contrasts, "_using_FC_", FC, "_padj_", pval),
-                             labSize = 2.0,
+                             subtitle = paste0(Test, " vs ", Control),
+                             labSize = 3.0,
                              labFace = "bold.italic",
                              labCol = "dark blue",
                              x = 'log2FoldChange',
                              y = 'padj',
                              xlab = bquote(~Log[2]~ 'fold change'),
                              ylab = bquote(~-Log[10]~ 'p-value change'),
-                             xlim = c(-10, 10),
-                             ylim = c(0, 45),
+                             xlim = c(-15, 15),
+                             ylim = c(0, 60),
                              pCutoff = pval,
                              FCcutoff = FC,
                              #pointSize = 2.0,
@@ -1120,7 +1125,7 @@ Volcano_Plots <- function(de_seq,
   Volcano <- ggpar(Volcano,
                    legend.title = "Differentially expressed genes",
                    ggtheme = theme_pubclean(),
-                   caption = paste("Volcano plot using", Volcano$labels$caption, sep = " "),
+                   caption = paste("Volcano plot using", str_replace(str_replace(Volcano$labels$caption, "total = ", ""), "variables", "genes"), sep = " "),
                    font.caption = c("bold.italic", "royal blue", 12),
                    font.legend = c(8, "bold"),
                    font.main = c(24, "bold", "dark red"),
@@ -1494,7 +1499,7 @@ clusterProfiler_Plots <- function(res = paste0(results_dir, "deseq2_results_anno
     ggpar(
       xlab = "Gene Ratio",
       ylab = "Pathways",
-      title = Plot_title,
+      title = title,
       submain = "Gene Set Enrichment",
       caption = "Enriched Pathways",
       #palette = inferno(10),

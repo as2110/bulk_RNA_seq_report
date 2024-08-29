@@ -85,9 +85,26 @@ Volcano <-
 
 Volcano
 #ggsave(paste0(plots_dir, Volcano$labels$title, "_", Volcano$labels$subtitle,"NFKB_Volcano_Plots.png"))
-
-
-
+label_list <- str_subset(negate=T,pattern="ZNF", c(UpSigTFs, DownSigTFs, "ABCB1", "XBP1", "ERN1", "PSMB5"))
+Volcano <- Volcano_Plots(de_seq = DeSeq2_return$de_seq, 
+              test = Test, 
+              res = DeSeq2_return$res, 
+              labels = TRUE,
+              title = Plot_title,
+              #pval = pvalue_VP, 
+              pval=0.05,
+              label_list = label_list,
+              #filter_specific = c(UpSigGenes, DownSigGenes),
+              FC = 1)
+Volcano
+ggsave(paste0(plots_dir, Volcano$labels$title, "_", Volcano$labels$subtitle,"shared_TFs_PIres.png"))
+UpSigGenes
+DownSigGenes
+DownSigTFs
+results_annotated %>%
+  filter(hgnc_symbol=="ABCB1")
+label_list
+write.table(row.names = FALSE, c(UpSigTFs, DownSigTFs), "results/common_plots/shared_TFs.txt", col.names = FALSE, quote=F)
 ```
 
 

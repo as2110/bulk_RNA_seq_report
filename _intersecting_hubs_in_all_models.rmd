@@ -12,15 +12,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r}
+##BiocManager::install("hfang-bristol/XGR", dependencies=T)
+## reload the installed package
+detach(package:XGR, unload=T)
+detach(package:Pi, unload=T)
 library(XGR)
 library(Pi)
 library(pathfindR)
-AMo1_car_dir <- "AMO1_WT_vs_Carfilzomib"
-AMo1_bor_dir <- "AMO1_WT_vs_Bortezomib"
+AMO1_car_dir <- "AMO1_WT_vs_Carfilzomib"
+AMO1_bor_dir <- "AMO1_WT_vs_Bortezomib"
 L363_car_dir <- "L363_WT_vs_Carfilzomib"
 
-AMO1_deseq_car <- read.delim(file = file.path("results", AMo1_car_dir, "deseq2_results_annotated.tsv"))
-AMO1_deseq_bor <- read.delim(file = file.path("results", AMo1_bor_dir, "deseq2_results_annotated.tsv"))
+AMO1_deseq_car <- read.delim(file = file.path("results", AMO1_car_dir, "deseq2_results_annotated.tsv"))
+AMO1_deseq_bor <- read.delim(file = file.path("results", AMO1_bor_dir, "deseq2_results_annotated.tsv"))
 L363_deseq_car <- read.delim(file = file.path("results", L363_car_dir, "deseq2_results_annotated.tsv"))
 
 
@@ -28,13 +32,13 @@ xgr_eterm_from_degs <- function(res = paste0(results_dir, "deseq2_results_annota
   
   results_annotated <- res
   if (FC < 0) {xgr_data <- results_annotated %>%
-    dplyr::filter(padj < p, log2FoldChange < FC
+    dplyr::filter(padj < p, log2FoldChange < FC, baseMean > 25
                   #!is.na(ENSEMBL)
     ) 
   }
 
   if (FC > 0) {xgr_data <- results_annotated %>%
-    dplyr::filter(padj < p, log2FoldChange > FC
+    dplyr::filter(padj < p, log2FoldChange > FC, baseMean > 25
                   #!is.na(ENSEMBL)
     ) 
   }
@@ -91,13 +95,13 @@ common_degs <- function(res = list("A" = results_annotated), FC = 1, p=0.05) {
   #names(degs) <- names(res)
   for (table in names(res)) {
     if (FC < 0) {data <- res[[table]] %>%
-    dplyr::filter(padj < p, log2FoldChange < FC
+    dplyr::filter(padj < p, log2FoldChange < FC, baseMean > 25
                   #!is.na(ENSEMBL)
     ) 
   }
 
   if (FC > 0) {data <- res[[table]] %>%
-    dplyr::filter(padj < p, log2FoldChange > FC
+    dplyr::filter(padj < p, log2FoldChange > FC, baseMean > 25
                   #!is.na(ENSEMBL)
     ) 
   }
@@ -109,29 +113,45 @@ common_degs <- function(res = list("A" = results_annotated), FC = 1, p=0.05) {
 }
 
 list_res <- list(AMO1_deseq_car, AMO1_deseq_bor, L363_deseq_car)
-names(list_res) <- c('AMO1 Car UP', 'AMO1 Bor UP', 'L363 Car UP')
+names(list_res) <- c('AMO1 Carfilzomib-res Upregulated', 'AMO1 Bortezomib-res Upregulated', 'L363 Carfilzomib-res Upregulated')
 
 common_up_degs <- common_degs(list_res, FC=1, p=0.05)
 
-names(list_res) <- c('AMO1 Car Down', 'AMO1 Bor Down', 'L363 Car Down')
+names(list_res) <- c('AMO1 Carfilzomib-res Downregulated', 'AMO1 Bortezomib-res Downregulated', 'L363 Carfilzomib-res Downregulated')
 common_down_degs <- common_degs(list_res, FC=-1, p=0.05)
 #common_up_degs
-common_degs_venn_up <- ggVennDiagram(common_up_degs, category.names = str_wrap(names(common_up_degs), 5)) + scale_fill_gradient(low="blue",high = "red")
+common_degs_venn_up <- ggVennDiagram(common_up_degs, label_size=7, category.names = str_wrap(names(common_up_degs), 20)) + scale_fill_gradient(low="blue",high = "red")
 common_degs_venn_up
-ggsave(filename =  paste0(plots_dir, "UPsig_Genes_plot.png"), width = 7, height = 8, units = "in")
-common_degs_venn_down <- ggVennDiagram(common_down_degs, category.names =  str_wrap(names(common_down_degs), 5)) + scale_fill_gradient(low="blue",high = "red")
+ggsave(filename =  paste0(plots_dir, "UPsig_Genes_plot.png"), width = 20, height = 12, units = "in")
+
+ggVennDiagram(common_up_degs, label_size=7, category.names = str_wrap(names(common_up_degs), 20), force_upset = T)
+ggVennDiagram(common_down_degs, label_size=7, category.names = str_wrap(names(common_down_degs), 20), force_upset = T)
+
+common_degs_venn_down <- ggVennDiagram(common_down_degs, label_size=7, category.names =  str_wrap(names(common_down_degs), 20)) + scale_fill_gradient(low="blue",high = "red")
 common_degs_venn_down
-ggsave(filename =  paste0(plots_dir, "DOWNsig_Genes_plot.png"), width = 7, height = 8, units = "in")
+ggsave(filename =  paste0(plots_dir, "DOWNsig_Genes_plot.png"), width = 20, height = 12, units = "in")
 
 
 UpSigGenes <- Reduce(intersect, common_up_degs)
-write.table(UpSigGenes, row.names = FALSE, col.names = FALSE, quote = FALSE, "common_up_degs.txt")
+write.table(UpSigGenes, row.names = FALSE, col.names = FALSE, quote = FALSE, file.path(common_plots_dir, "All_3_common_up_degs.txt"))
 
 DownSigGenes <- Reduce(intersect, common_down_degs) 
-write.table(DownSigGenes, row.names = FALSE, col.names = FALSE, quote = FALSE, "common_down_degs.txt")
+write.table(DownSigGenes, row.names = FALSE, col.names = FALSE, quote = FALSE, file.path(common_plots_dir, "All_3_common_down_degs.txt"))
+
+transcription_factors <- read.csv("TFDB.csv") %>%
+  dplyr::filter(Is.TF. == "Yes")
+
+UpSigTFs <- intersect(UpSigGenes, transcription_factors$HGNC.symbol)
+DownSigTFs <- intersect(DownSigGenes, transcription_factors$HGNC.symbol)
+UpSigTFs
+DownSigTFs
 
 
+make_heatmap(specific_tfs = c(UpSigTFs, DownSigTFs), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "_all_3_lines_TF_genes.png"), height = 6, width = 8)
 
+make_heatmap(specific_tfs = c(UpSigGenes, DownSigGenes), pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title, "_", Test, "_all_3_lines_common_DEG_genes.png"), height = 20, width = 8)
 ```
 
 
@@ -199,21 +219,71 @@ for (i in 1:length(dbs)) {
 ## combined pathfinder charts
 
 ```{r}
+library(pathfindR)
+common_plots_dir <- "results/common_plots"
+if (! dir.exists(common_plots_dir)) {
+  dir.create(common_plots_dir, recursive = T)
+}
 
-L363_car_pathfindR_output_Biogrid_Reactome <- readRDS(file=paste0(results_dir, "L363_Car_pathfindR_output_Biogrid_Reactome.RDS"))
-AMO1_car_pathfindR_output_Biogrid_Reactome <- readRDS(file=paste0("results/AMO1_WT_vs_Carfilzomib/", "AMO1_car_pathfindR_output_Biogrid_Reactome.RDS"))
-AMO1_bor_pathfindR_output_Biogrid_Reactome <- readRDS(file=paste0("results/AMO1_WT_vs_Bortezomib/", "AMO1_bor_pathfindR_output_Biogrid_Reactome.RDS"))
+AMO1_car_dir <- "AMO1_WT_vs_Carfilzomib"
+AMO1_bor_dir <- "AMO1_WT_vs_Bortezomib"
+L363_car_dir <- "L363_WT_vs_Carfilzomib"
 
+AMO1_deseq_car <- read.delim(file = file.path("results", AMO1_car_dir, "deseq2_results_annotated.tsv"))
+AMO1_deseq_bor <- read.delim(file = file.path("results", AMO1_bor_dir, "deseq2_results_annotated.tsv"))
+L363_deseq_car <- read.delim(file = file.path("results", L363_car_dir, "deseq2_results_annotated.tsv"))
+
+L363_car_pathfindR_output_Biogrid_Reactome <- readRDS(file=file.path("results", L363_car_dir, "pathfindR_output_Biogrid_Reactome_clustered_hierarchical.RDS")) %>%
+  filter(Status == "Representative")
+AMO1_car_pathfindR_output_Biogrid_Reactome <- readRDS(file=file.path("results", AMO1_car_dir, "pathfindR_output_Biogrid_Reactome_clustered_hierarchical.RDS")) %>%
+  filter(Status == "Representative")
+AMO1_bor_pathfindR_output_Biogrid_Reactome <- readRDS(file=file.path("results", AMO1_bor_dir, "pathfindR_output_Biogrid_Reactome_clustered_hierarchical.RDS")) %>%
+  filter(Status == "Representative")
+
+
+L363_car_pathfindR_output_Biogrid_GO_All <- readRDS(file=file.path("results", L363_car_dir, "pathfindR_output_Biogrid_GO_All_clustered_hierarchical.RDS")) %>%
+  filter(Status == "Representative")
+AMO1_car_pathfindR_output_Biogrid_GO_All <- readRDS(file=file.path("results", AMO1_car_dir, "pathfindR_output_Biogrid_GO_All_clustered_hierarchical.RDS")) %>%
+  filter(Status == "Representative")
+AMO1_bor_pathfindR_output_Biogrid_GO_All <- readRDS(file=file.path("results", AMO1_bor_dir, "pathfindR_output_Biogrid_GO_All_clustered_hierarchical.RDS")) %>%
+  filter(Status == "Representative")
 
 combined_pathfindR_results_Car <- combine_pathfindR_results(
-  result_A = AMO1_bor_pathfindR_output_Biogrid_Reactome,
-  result_B = AMO1_car_pathfindR_output_Biogrid_Reactome,
+  result_A = L363_car_pathfindR_output_Biogrid_GO_All,
+  result_B = AMO1_bor_pathfindR_output_Biogrid_GO_All,
   plot_common = FALSE
-) %>% drop_na()
+) %>% drop_na() %>%
+mutate(total = Fold_Enrichment_A + Fold_Enrichment_B)
+
+combined_pathfindR_results_Car_UP <- combined_pathfindR_results_Car %>%
+  filter(Down_regulated_A == "", Down_regulated_B=="")
+
+combined_pathfindR_results_Car_DOWN <- combined_pathfindR_results_Car %>%
+  filter(Up_regulated_A == "", Up_regulated_B=="")
 
 combined_results_graph(combined_pathfindR_results_Car,
                        use_description = TRUE,
-                       selected_terms = combined_pathfindR_results_Car$Term_Description[3])
+                       selected_terms = combined_pathfindR_results_Car$Term_Description[56])
+
+
+
+
+L363_car_pathfindR_output_Biogrid_GO <- readRDS(file=file.path("results", L363_car_dir, "L363_car_pathfindR_output_Biogrid_GO_All.RDS"))
+AMO1_car_pathfindR_output_Biogrid_GO <- readRDS(file=file.path("results", AMO1_car_dir, "AMO1_car_pathfindR_output_Biogrid_GO_All.RDS"))
+AMO1_bor_pathfindR_output_Biogrid_GO <- readRDS(file=file.path("results", AMO1_bor_dir, "AMO1_bor_pathfindR_output_Biogrid_GO_All.RDS"))
+
+
+combined_pathfindR_results_Car <- combine_pathfindR_results(
+  result_A = AMO1_car_pathfindR_output_Biogrid_GO,
+  result_B = L363_car_pathfindR_output_Biogrid_GO,
+  plot_common = FALSE
+) %>% drop_na()
+combined_pathfindR_results_Car
+combined_results_graph(combined_pathfindR_results_Car,
+                       use_description = TRUE,
+                       selected_terms = combined_pathfindR_results_Car$Term_Description[79])
+
+
 ```
 
 
@@ -316,19 +386,27 @@ AMo1_bor_TFs <- read.table(file = file.path("results", AMo1_bor_dir, "All_top_TF
 L363_car_TFs <- read.table(file = file.path("results", L363_car_dir, "All_top_TFs.txt")) %>% pull()
 
 
-AMo1_car_intersecting_hubs <- read.table(file = file.path("results", AMo1_car_dir, "intersecting_hubs.txt")) %>% pull()
-AMo1_bor_intersecting_hubs <- read.table(file = file.path("results", AMo1_bor_dir, "intersecting_hubs.txt")) %>% pull()
-L363_car_intersecting_hubs <- read.table(file = file.path("results", L363_car_dir, "intersecting_hubs.txt")) %>% pull()
+AMO1_car_intersecting_hubs <- read.table(file = file.path("results", AMo1_car_dir, "AMO1_Carfilzomib_intersecting_hubs.txt")) %>% pull()
+AMO1_bor_intersecting_hubs <- read.table(file = file.path("results", AMo1_bor_dir, "AMO1_Bortezomib_intersecting_hubs.txt")) %>% pull()
+L363_car_intersecting_hubs <- read.table(file = file.path("results", L363_car_dir, "L363_Carfilzomib_intersecting_hubs.txt")) %>% pull()
 
 Hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_hubs, AMo1_Bor = AMo1_bor_hubs, L363_Car = L363_car_hubs))
 TFs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_TFs, AMo1_Bor = AMo1_bor_TFs, L363_Car = L363_car_TFs))
-Intersecting_hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMo1_car_intersecting_hubs, AMo1_Bor = AMo1_bor_intersecting_hubs, L363_Car = L363_car_intersecting_hubs))
-
+Intersecting_hubs_in_all_three <-  Reduce(intersect, list(AMO1_Car = AMO1_car_intersecting_hubs, AMo1_Bor = AMO1_bor_intersecting_hubs, L363_Car = L363_car_intersecting_hubs))
+Hubs_in_all_three
+TFs_in_all_three
 #intersect(Hubs_in_all_three, TFs_in_all_three)
 make_heatmap(specific_tfs = TFs_in_all_three[1:25], pathways = NULL)
 make_heatmap(specific_tfs = Intersecting_hubs_in_all_three, pathways = NULL)
 #AMO1_deseq_bor <- read.delim(file = file.path("results", AMo1_bor_dir, "deseq2_results_annotated.tsv"))
 #L363_deseq_car <- read.delim(file = file.path("results", L363_car_dir, "deseq2_results_annotated.tsv"))
+make_heatmap(specific_tfs = AMO1_car_intersecting_hubs, pathways = NULL)
+ggsave(paste0(plots_dir, Plot_title,"_all_interesecting_final.png"), height = 7, width=8)
+#make_heatmap(specific_tfs = AMO1_bor_intersecting_hubs, pathways = NULL)
+#ggsave(paste0(plots_dir, Plot_title,"_all_interesecting_final.png"), height = 7, width=8)
+#make_heatmap(specific_tfs = L363_car_intersecting_hubs, pathways = NULL)
+#ggsave(paste0(plots_dir, Plot_title,"_all_interesecting_final.png"), height = 7, width=8)
+
 ```
 
 
@@ -336,20 +414,1328 @@ make_heatmap(specific_tfs = Intersecting_hubs_in_all_three, pathways = NULL)
 
 
 
+```{r}
+intersect(Hubs_in_all_three, TFs_in_all_three)
+
+intersect(AMo1_bor_TFs, AMo1_bor_hubs)
+
+intersect(AMo1_car_TFs, AMo1_car_hubs)
+
+intersect(AMo1_car_TFs, L363_car_TFs)
+
+intersect(intersect(AMo1_car_hubs, L363_car_hubs), AMo1_bor_hubs)
+intersect(intersect(AMo1_car_TFs, L363_car_TFs), AMo1_bor_TFs)
+
+Reduce(intersect, list(intersect(AMo1_car_hubs, L363_car_hubs), intersect(AMo1_car_TFs, L363_car_TFs)))
+
+Reduce(intersect, list(Hubs_in_all_three, TFs_in_all_three))
+
+L363_car_intersecting_hubs
+
+L363_car_TFs %>% sort()
+L363_car_hubs %>% sort()
+TFs_in_all_three
+
+
+read.delim(file = file.path("results", L363_car_dir, "deseq2_results_annotated.tsv")) %>% dplyr::filter(hgnc_symbol == "ARNT")
+read.delim(file = file.path("results", AMo1_bor_dir, "deseq2_results_annotated.tsv")) %>% dplyr::filter(hgnc_symbol == "ARNT")
+read.delim(file = file.path("results", AMo1_car_dir, "deseq2_results_annotated.tsv")) %>% dplyr::filter(hgnc_symbol == "ARNT")
+
+make_heatmap(specific_tfs = AMO1_car_intersecting_hubs, pathways = NULL)
+```
+
+
+```{r clusterProfiler_ora_indiv}
+#BiocManager::install("ReactomePA", update = FALSE)
+library(ReactomePA)
+# Reactome
+# GO BP
+# NCG
+# Wikipathways
+
+
+clusterProfiler_GO_Plots <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv"), title, FC=1) {
+
+
+  ##Analysis with clusterProfiler
+
+  results_annotated <- read.delim(res)
+  gseaInput <-  results_annotated %>%
+    dplyr::filter(!is.na(hgnc_symbol), !is.na(stat)) %>%
+    arrange(desc(stat))
+
+  ranks <- pull(gseaInput,stat)
+  names(ranks) <- gseaInput$ensembl_gene_id
+  if (FC > 0) {
+    L2FC_direction <- "Upregulated"
+    sigGenes <- results_annotated %>%
+    dplyr::filter(padj < 0.05, log2FoldChange > 1, baseMean > 25
+                  #!is.na(ENSEMBL)
+    ) %>% pull(ensembl_gene_id)
+  }
+  if (FC < 0) {
+    L2FC_direction <- "Downregulated"
+    sigGenes <- results_annotated %>%
+    dplyr::filter(padj < 0.05, log2FoldChange < -1, baseMean > 25
+                  #!is.na(ENSEMBL)
+    ) %>% pull(ensembl_gene_id)
+  } 
+  universe <- results_annotated %>% pull(ensembl_gene_id)
+  
+  
+  gsea_GO <- gseGO(geneList     = ranks,
+              OrgDb        = org.Hs.eg.db,
+              keyType = "ENSEMBL",
+              ont          = "BP",
+              minGSSize    = 5,
+              maxGSSize    = 500,
+              pvalueCutoff = 0.05,
+              verbose      = FALSE)
+  
+  ridgeplot <- ridgeplot(gsea_GO,
+                         label_format = function(x) str_wrap(x, width = 40),
+                         orderBy = "NES")  %>%
+    ggpar(
+      #xlab = "Gene Ratio",
+      #ylab = "Pathways",
+      title = title,
+      submain = "GO Biological Processes Gene set enrichment Analysis",
+      caption = paste(L2FC_direction, "genes"),
+      xlim = c(-50, 50),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+  
+
+  enrich_go <- enrichGO(
+    gene= sigGenes,
+    OrgDb = org.Hs.eg.db,
+    keyType = "ENSEMBL",
+    ont = "BP",
+    minGSSize = 10,
+    maxGSSize = 500,
+    universe = universe,
+    qvalueCutoff = 0.05,
+    readable=TRUE
+  ) %>% pairwise_termsim()
+
+
+  ##ggplot(enrich_go, aes(Count)) + geom_density(bw = "SJ")
+  ##Visualise using dotplot and emapplot
+
+  dotplot <- (dotplot(enrich_go) +
+                scale_colour_gradientn(limits=c(0, 0.05), colours=rev(brewer.pal(9,"YlOrRd")), name ="P-value") + scale_y_discrete(labels = function(x) str_wrap(x, width = 20))
+              + scale_size(range = c(1, 6), name = "Number of genes", breaks = seq(0, max(enrich_go$Count), by=20))
+  ) %>%
+    ggpar(
+      xlab = "Gene Ratio",
+      ylab = "Pathways",
+      title = title,
+      submain = "GO Biological Processes Over-repesentation Analysis",
+      caption = paste(L2FC_direction, "genes"),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
 
 
 
 
+  #enrich_go2 <- pairwise_termsim(enrich_go)
+  emapplot <- (emapplot(enrich_go,
+                        showCategory = 20,
+                        color = "p.adjust",
+                        layout = "nicely",
+                        #legend_n = 5,
+                        cex_label_category = 0.5,
+                        cex_category = 2,
+
+  )
+
+  + scale_colour_gradientn(limits=c(0, 0.05), colours=rev(brewer.pal(9,"Blues")), name ="P-value", )
+  + scale_size(range = c(2, 8), name = "Number of genes", breaks = seq(0, max(enrich_go$Count), by=20))
+  ##guide = guide_colorbar(reverse = TRUE)
+  + guides(colour = guide_legend(title.position = "top"))
+
+  ##  + geom_node_label(aes(label = str_wrap(name, 15)),repel=TRUE, fontface = "bold", family = "Comic Sans MS", size = 2, color = "red", check_overlap = TRUE, segment.colour = "#666666", segment.size = 0.5, arrow = NULL, force = 10, alpha = 0.1,) ###this can be used to add labels manually, use gginnards or ggedit to remove existing layer
+
+  ) %>%
+    ggpar(
+
+      title = title,
+      submain = "GO Biological process",
+      caption = paste(L2FC_direction, "genes"),
+      #palette = inferno(10),
+      #ggtheme = theme_grey(),
+      legend = "right",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      #font.x = c("bold", "black", "11"),
+      #font.y = c("bold", "black", "11"),
+      #font.tickslab = c("bold", "black", "6"),
+      tickslab = FALSE,
+      #font.family = "Comic Sans MS",
+      x.text.angle = 0
+    )
+
+  ## resetting some pathway name displays to be readable
+  emapplot$data$name <- str_wrap(emapplot$data$name, 10)
+  emapplot$layers[[3]]$geom$default_aes$fontface <- "bold"
 
 
 
+  gene_set_plots <- list(dotplot, emapplot, ridgeplot)
+  return(gene_set_plots)
+  #dotplot
+  ##Alternatively use the genes list to write a text file using write.table to create to files - a list of all genes in the analysis and a list of significant differentially expressred genes.These text files can be analysed in GORilla
 
 
 
+  }
+
+clusterProfiler_UP_plots_GO <- clusterProfiler_GO_Plots(
+  res = paste0(results_dir, "deseq2_results_annotated.tsv"),
+  title = paste(Plot_title, Control, "vs", Test),
+  FC = 1
+)
+
+clusterProfiler_UP_plots_GO[[3]]
+ggsave(paste0(plots_dir, Plot_title,"clusterProfilter_GO_plots.png"), height = 15, width=10)
+
+clusterProfiler_UP_plots_GO[[1]]
+ggsave(paste0(plots_dir, Plot_title,"clusterProfilter_GO_gsea_ridgeplot.png"), height = 8, width=10)
+
+L363
+```
+
+
+```{r clusterProfiler_ora_common}
+ck_ora_input_generate <- function(res = list("A" = results_annotated), FC = 1, p=0.05) {
+  degs <- list()
+  #names(degs) <- names(res)
+  for (table in names(res)) {
+    if (FC < 0) {data <- res[[table]] %>%
+    dplyr::filter(padj < p, log2FoldChange < FC, baseMean > 25,
+                  !is.na(ENTREZID)
+    ) 
+    ud <- "Downregulated"
+  }
+
+  if (FC > 0) {data <- res[[table]] %>%
+    dplyr::filter(padj < p, log2FoldChange > FC, baseMean > 25,
+                  !is.na(ENTREZID)
+    ) 
+  ud <- "Upregulated"
+  }
+    degs[[table]] <- data %>% 
+      select(id=ENTREZID) %>%
+      mutate(direction = ud, 
+             condition=str_replace(table, ud, ""))
+  }
+  
+  return(degs)
+  
+}
+
+list_res <- list(AMO1_deseq_car, AMO1_deseq_bor, L363_deseq_car)
+names(list_res) <- c('AMO1 Carfilzomib-res Upregulated', 'AMO1 Bortezomib-res Upregulated', 'L363 Carfilzomib-res Upregulated')
+
+common_up_degs <- ck_ora_input_generate(list_res, FC=1, p=0.05) %>% bind_rows()
+
+names(list_res) <- c('AMO1 Carfilzomib-res Downregulated', 'AMO1 Bortezomib-res Downregulated', 'L363 Carfilzomib-res Downregulated')
+common_down_degs <- ck_ora_input_generate(list_res, FC=-1, p=0.05)  %>% bind_rows()
+
+ck_ora_input <- bind_rows(common_up_degs, common_down_degs)
+ck_ora_background <- c(AMO1_deseq_car$ENTREZID, AMO1_deseq_bor$ENTREZID, L363_deseq_car$ENTREZID) %>%
+  unique() %>% discard(is.na)
+
+ck_ora_go_bp <- compareCluster(id~direction+condition, data=ck_ora_input, universe=ck_ora_background, fun="enrichGO", ont="BP", OrgDb= "org.Hs.eg.db", keyType="ENTREZID", readable=TRUE, qvalueCutoff=0.2, pAdjustMethod="fdr") 
+
+ck_ora_go_bp_simplify <- ck_ora_go_bp %>% clusterProfiler::simplify() %>%
+  mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio))
+
+ck_ora_go_mf <- compareCluster(id~direction+condition, data=ck_ora_input, universe=ck_ora_background, fun="enrichGO", ont="MF", OrgDb= "org.Hs.eg.db", keyType="ENTREZID", readable=TRUE, qvalueCutoff=0.2, pAdjustMethod="fdr") %>% pairwise_termsim()
+
+ck_ora_go_mf_simplify <- ck_ora_go_mf %>% clusterProfiler::simplify()
+
+clusterProfiler_ORA_dotplot <- function(ORA_obj, title){
+  
+  dot <-
+    
+    (
+      dotplot(
+        ORA_obj,
+        x = "FE",
+        by = "FE",
+        size = "count",
+        showCategory = 5
+      ) + facet_grid( ~ direction)
+      + scale_fill_gradientn(
+        limits = c(0, 0.05),
+        colours = rev(brewer.pal(9, "YlOrRd")),
+        name = "P-value"
+      ) + scale_y_discrete(
+        labels = function(x)
+          str_wrap(x, width = 20)
+      )
+     # +scale_x_discrete(labels = function(x) str_wrap(x, width = 10))
+      +scale_size(
+      range = c(1, 6),
+      name = "Number of genes",
+      breaks = seq(0, max(ORA_obj@compareClusterResult$Count), by = 20)
+    )
+  
+  ) %>%
+  ggpar(
+    xlab = "Fold enrichment",
+    ylab = "Pathways",
+    title = "PI resistant cell lines",
+    submain = title,
+    caption = "Over-repesentation Analysis",
+    #caption = paste(L2FC_direction, "genes"),
+    #palette = inferno(10),
+    ggtheme = theme_pubr(),
+    legend = "top",
+    font.title = c("bold", "brown", 18),
+    font.subtitle = c("bold", "dark grey", 14),
+    font.caption = c("bold.italic", "royal blue", 12),
+    font.legend = c("bold", "black", 6),
+    font.x = c("bold", "black", "11"),
+    font.y = c("bold", "black", "11"),
+    font.tickslab = c("bold", "black", "6"),
+    #font.family = "sans",
+    x.text.angle = 0
+  )
+
+return(dot)
+  }
+
+# change above xlab and x to condition
+clusterProfiler_ORA_dotplot(ck_ora_go_bp_simplify, title="GO Biological processes")
+ggsave(file.path(common_plots_dir, "ORA_GO_BP_clustered.png"), height=10, width=12)
+
+clusterProfiler_ORA_dotplot(ck_ora_go_mf_simplify, title="GO Molecular functions")
+ggsave(file.path(common_plots_dir, "ORA_GO_BP_clustered.png"), height=10, width=12)
+```
+
+
+```{r clusterProfiler_gsea_indiv}
+gc()
+clusterProfiler_GSEA_Plots <- function(res = paste0(results_dir, "deseq2_results_annotated.tsv"), title=paste(Plot_title, Control, "vs", Test), FC=1) {
+
+  ##Analysis with clusterProfiler
+
+  results_annotated <- read.delim(res)
+  gseaInput <-  results_annotated %>%
+    dplyr::filter(!is.na(hgnc_symbol), !is.na(stat), !is.na(ENTREZID)) %>%
+    arrange(desc(log2FoldChange))
+  
+  ranks_entrez <- pull(gseaInput,log2FoldChange)
+  names(ranks_entrez ) <- gseaInput$ENTREZID
+
+  ranks <- pull(gseaInput,log2FoldChange)
+  names(ranks) <- gseaInput$hgnc_symbol
+
+  gsea_GO_BP <- gseGO(
+    geneList     = ranks,
+    OrgDb        = org.Hs.eg.db,
+    keyType = "SYMBOL",
+    ont          = "BP",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE
+  ) %>% clusterProfiler::simplify() #%>% pairwise_termsim()
+  
+  gsea_GO_MF <- gseGO(
+    geneList     = ranks,
+    OrgDb        = org.Hs.eg.db,
+    keyType = "SYMBOL",
+    ont          = "MF",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE
+  ) %>% clusterProfiler::simplify() #%>% pairwise_termsim()
+    
+  gsea_GO_CC <- gseGO(
+    geneList     = ranks,
+    OrgDb        = org.Hs.eg.db,
+    keyType = "SYMBOL",
+    ont          = "CC",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE
+  ) %>% clusterProfiler::simplify() #%>% pairwise_termsim()
+  
+  gsea_Reactome <- ReactomePA::gsePathway(
+    geneList = ranks_entrez,
+    organism = "human",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE
+  ) %>% 
+    setReadable(
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID")
+  
+  gsea_WP <- gseWP(
+    geneList     = ranks_entrez,
+    organism="Homo sapiens",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE,
+  ) %>% 
+    setReadable(OrgDb = org.Hs.eg.db,
+                keyType = "ENTREZID")
+  
+  gsea_NCG <- DOSE::gseNCG(
+    geneList     = ranks_entrez,
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE
+  ) %>% 
+    setReadable(OrgDb = org.Hs.eg.db,
+                keyType = "ENTREZID")
+  
+  HS_HALLMARK <-
+    msigdbr(species = "Homo sapiens", category = "H") %>% 
+    dplyr::distinct(gs_name, gene_symbol) %>% 
+    as.data.frame()
+
+  gsea_Hallmark <- clusterProfiler::GSEA(
+    ranks,
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    TERM2GENE = HS_HALLMARK,
+    by = "fgsea"
+  ) #%>% clusterProfiler::simplify() %>% pairwise_termsim()
+
+  
+  
+  ridgeplot <- ridgeplot(gsea_GO_BP,
+                         label_format = function(x) str_wrap(x, width = 40),
+                         orderBy = "NES")  %>%
+    ggpar(
+      #xlab = "Gene Ratio",
+      #ylab = "Pathways",
+      title = title,
+      submain = "GO Biological Processes Gene set enrichment Analysis",
+      caption = paste("all genes"),
+      xlim = c(-50, 50),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+  
+
+
+  gene_set_plots <- list(gsea_GO_BP, gsea_GO_MF, gsea_GO_CC, gsea_NCG, gsea_Reactome, gsea_WP, gsea_Hallmark)
+  return(gene_set_plots)
+  #dotplot
+  ##Alternatively use the genes list to write a text file using write.table to create to files - a list of all genes in the analysis and a list of significant differentially expressred genes.These text files can be analysed in GORilla
+
+  }
+
+Indiv_gsea_tables_CP <- clusterProfiler_GSEA_Plots() 
+saveRDS(Indiv_gsea_tables_CP, file=file.path(results_dir, "Indiv_gsea_tables_CP.RDS"))
+
+gc()  
+
+```
+
+
+```{r clusterProfiler_gsea_common}
+ ### Compare GSEA ####
+AMO1_bor_dir_gsea_input <- AMO1_deseq_bor %>%
+  dplyr::filter(!is.na(hgnc_symbol), !is.na(stat), !is.na(ENTREZID)) %>%
+  arrange(desc(log2FoldChange))
+
+AMO1_bor_dir_gsea_genelist <- AMO1_bor_dir_gsea_input$log2FoldChange
+names(AMO1_bor_dir_gsea_genelist) <- AMO1_bor_dir_gsea_input$ENTREZID
+
+
+AMO1_car_dir_gsea_input <- AMO1_deseq_car %>%
+  dplyr::filter(!is.na(hgnc_symbol), !is.na(stat), !is.na(ENTREZID)) %>%
+  arrange(desc(log2FoldChange))
+
+AMO1_car_dir_gsea_genelist <- AMO1_car_dir_gsea_input$log2FoldChange
+names(AMO1_car_dir_gsea_genelist) <- AMO1_car_dir_gsea_input$ENTREZID
+
+
+L363_car_dir_gsea_input <- L363_deseq_car %>%
+  dplyr::filter(!is.na(hgnc_symbol), !is.na(stat), !is.na(ENTREZID)) %>%
+  arrange(desc(log2FoldChange))
+L363_car_dir_gsea_genelist <- L363_car_dir_gsea_input$log2FoldChange
+names(L363_car_dir_gsea_genelist) <- L363_car_dir_gsea_input$ENTREZID
+
+common_gsea_input <- list("AMO1 Carfilzomib-res" = AMO1_bor_dir_gsea_genelist,
+                          "AMO1 Bortezomib-res" = AMO1_car_dir_gsea_genelist, 
+                          "L363 Carfilzomib-res" = L363_car_dir_gsea_genelist)
+  
+ck_gsea_go_bp <-
+  compareCluster(
+    common_gsea_input,
+    fun = "gseGO",
+    OrgDb = "org.Hs.eg.db",
+    keyType = "ENTREZID",
+    ont          = "BP",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    verbose      = FALSE,
+    pAdjustMethod = "fdr"
+  ) %>% setReadable(
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID") %>% 
+  clusterProfiler::simplify()
+
+
+ck_gsea_go_mf <-
+  compareCluster(
+    common_gsea_input,
+    fun = "gseGO",
+    OrgDb = "org.Hs.eg.db",
+    keyType = "ENTREZID",
+    ont          = "MF",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    verbose      = FALSE,
+    pAdjustMethod = "fdr"
+  ) %>% 
+  setReadable(
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID") %>% 
+  clusterProfiler::simplify()
+
+ck_gsea_go_reactome <-
+  compareCluster(
+    common_gsea_input,
+    fun = "gsePathway",
+    organism = "human",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE
+  ) %>% 
+    setReadable(
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID")
 
 
 
+ck_gsea_go_wp <-
+  compareCluster(
+    common_gsea_input,
+    fun = "gseWP",
+    organism="Homo sapiens",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    verbose      = FALSE,
+  ) %>% 
+    setReadable(OrgDb = org.Hs.eg.db,
+                keyType = "ENTREZID")
+
+HS_HALLMARK <-
+    msigdbr(species = "Homo sapiens", category = "H") %>% 
+    dplyr::distinct(gs_name, entrez_gene) %>% 
+    as.data.frame()
+
+  
+ck_gsea_go_hallmark <-
+  compareCluster(
+    common_gsea_input,
+    fun = "GSEA",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr",
+    TERM2GENE = HS_HALLMARK,
+    by = "fgsea"
+  ) %>% 
+    setReadable(
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID")
 
 
 
+ck_gsea_go_hallmark  %>% pairwise_termsim() %>% emapplot()
+(ck_gsea_go_hallmark  %>% pairwise_termsim() %>%
+  mutate(Description = str_to_title(str_replace(ID, "HALLMARK_", ""))) %>%
+    group_by(ID) %>%
+  mutate(r=n()) %>%
+  filter(r>1) %>%
+  dotplot(
+    showCategory = 3,
+    by = "NES",
+    size = "NES",
+    title = "Hallmark Genesets GSEA" ,
+    split = ".sign"
+  ) + facet_grid(. ~ .sign) +
+  scale_fill_gradientn(
+    limits = c(0, 0.05),
+    colours = rev(brewer.pal(9, "YlOrRd")),
+    name = "P-value"
+  ) + scale_y_discrete(
+    labels = function(x)
+      str_wrap(x, width = 20)
+  ) + scale_x_discrete(
+  labels = function(x)
+    str_wrap(x, width = 10)
+) )%>%
+  ggpar(
+      xlab = "",
+      ylab = "",
+      #title = "GO Biological Processes GSEA",
+      #submain = "GO Biological Processes Over-repesentation Analysis",
+      caption = paste("All", "genes"),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+
+ggsave(file.path(common_plots_dir, "Cluster_GSEA_Hallmark.png"), height=5, width = 8)
+
+
+
+ ck_gsea_go_hallmark %>% 
+   pairwise_termsim() %>% 
+   group_by(ID) %>%
+  mutate(r=n()) %>%
+  filter(r>1) %>%
+   #filter(NES > 0) %>%
+   filter(ID %in% c("HALLMARK_MYC_TARGETS_V2", "HALLMARK_MYC_TARGETS_V1", "HALLMARK_OXIDATIVE_PHOSPHORYLATION")) %>% 
+   #cnetplot()
+   
+   #filter(! ID %in% c("HALLMARK_MYC_TARGETS_V1", "HALLMARK_OXIDATIVE_PHOSPHORYLATION", "HALLMARK_E2F_TARGETS", "HALLMARK_G2M_CHECKPOINT", "HALLMARK_ALLOGRAFT_REJECTION", "HALLMARK_INTERFERON_ALPHA_RESPONSE")) %>%
+   cnetplot(showCategory=1, 
+          
+            #cex.params = list(foldChange = common_gsea_input$`L363 Carfilzomib-res`)
+            )
+ 
+ggsave(file.path(common_plots_dir, "hallmark_cnet.png"), height = 8, width=8, bg="white")
+```
+
+```{r}
+ck_gsea_go_bp %>% pairwise_termsim() %>% emapplot()
+(ck_gsea_go_bp  %>% pairwise_termsim() %>%
+  mutate(r=n()) %>%
+  filter(r>1) %>%
+  dotplot(
+    showCategory = 2,
+    by = "NES",
+    size = "NES",
+    title = "GO Biological Processes GSEA" ,
+    split = ".sign"
+  ) + facet_grid(. ~ .sign) +
+  scale_fill_gradientn(
+    limits = c(0, 0.05),
+    colours = rev(brewer.pal(9, "YlOrRd")),
+    name = "P-value"
+  ) + scale_y_discrete(
+    labels = function(x)
+      str_wrap(x, width = 20)
+  ) + scale_x_discrete(
+  labels = function(x)
+    str_wrap(x, width = 10)
+) )%>%
+  ggpar(
+      xlab = "",
+      ylab = "",
+      #title = "GO Biological Processes GSEA",
+      #submain = "GO Biological Processes Over-repesentation Analysis",
+      caption = paste("All", "genes"),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+
+ggsave(file.path(common_plots_dir, "Cluster_GSEA_GO_BP.png"), height=7, width = 8)
+
+
+
+ ck_gsea_go_hallmark %>% 
+   pairwise_termsim() %>% 
+   group_by(ID) %>%
+  mutate(r=n()) %>%
+  filter(r>1) %>%
+   #filter(NES > 0) %>%
+  #filter(ID %in% c("HALLMARK_MYC_TARGETS_V2", "HALLMARK_MYC_TARGETS_V1", "HALLMARK_OXIDATIVE_PHOSPHORYLATION", "HALLMARK_HYPOXIA", "HALLMARK_INFLAMMATORY_RESPONSE")) %>% 
+   #cnetplot()
+   
+   #filter(! ID %in% c("HALLMARK_MYC_TARGETS_V1", "HALLMARK_OXIDATIVE_PHOSPHORYLATION", "HALLMARK_E2F_TARGETS", "HALLMARK_G2M_CHECKPOINT", "HALLMARK_ALLOGRAFT_REJECTION", "HALLMARK_INTERFERON_ALPHA_RESPONSE")) %>%
+   cnetplot(showCategory=c("HALLMARK_MYC_TARGETS_V2") 
+          
+            #cex.params = list(foldChange = common_gsea_input$`L363 Carfilzomib-res`)
+            )
+ 
+ggsave(file.path(common_plots_dir, "hallmark_cnet.png"), height = 8, width=8, bg="white")
+```
+
+
+```{r}
+ck_gsea_go_reactome  %>% pairwise_termsim() %>% emapplot()
+(ck_gsea_go_reactome  %>% pairwise_termsim() %>%
+  group_by(ID) %>%
+  mutate(r=n()) %>%
+  filter(r>1) %>%
+  #mutate(Description = str_to_title(str_replace(ID, "HALLMARK_", ""))) %>%
+  dotplot(
+    showCategory = 3,
+    by = "NES",
+    size = "NES",
+    title = "Reactome pathways GSEA" ,
+    split = ".sign"
+  ) + facet_grid(. ~ .sign) +
+  scale_fill_gradientn(
+    limits = c(0, 0.05),
+    colours = rev(brewer.pal(9, "YlOrRd")),
+    name = "P-value"
+  ) + scale_y_discrete(
+    labels = function(x)
+      str_wrap(x, width = 20)
+  ) + scale_x_discrete(
+  labels = function(x)
+    str_wrap(x, width = 10)
+)) %>%
+  ggpar(
+      xlab = "",
+      ylab = "",
+      #title = "GO Biological Processes GSEA",
+      #submain = "GO Biological Processes Over-repesentation Analysis",
+      caption = paste("All", "genes"),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+
+ggsave(file.path(common_plots_dir, "Cluster_GSEA_Reactome.png"), height=8, width=8)
+
+
+ ck_gsea_go_reactome %>% 
+   pairwise_termsim() %>% 
+    group_by(ID) %>%
+  mutate(r=n()) %>%
+  filter(r>2) %>%
+   #filter(NES > 0) %>%
+   #filter(ID %in% c("HALLMARK_MYC_TARGETS_V2", "HALLMARK_G2M_CHECKPOINT")) %>% 
+   #cnetplot()
+   
+   #filter(! ID %in% c("HALLMARK_MYC_TARGETS_V1", "HALLMARK_OXIDATIVE_PHOSPHORYLATION", "HALLMARK_E2F_TARGETS", "HALLMARK_G2M_CHECKPOINT", "HALLMARK_ALLOGRAFT_REJECTION", "HALLMARK_INTERFERON_ALPHA_RESPONSE")) %>%
+   cnetplot(showCategory=NULL, 
+            #cex.params = list(foldChange = common_gsea_input$`L363 Carfilzomib-res`)
+            )
+ 
+ggsave(file.path(common_plots_dir, "reactome_cnet.png"), height = 12, width=12, bg="white")
+```
+
+```{r}
+ck_gsea_go_wp  %>% pairwise_termsim() %>% emapplot()
+(ck_gsea_go_wp  %>% pairwise_termsim() %>%
+  group_by(ID) %>%
+  mutate(r=n()) %>%
+  filter(r>1) %>%
+  #mutate(Description = str_to_title(str_replace(ID, "HALLMARK_", ""))) %>%
+  dotplot(
+    showCategory = 3,
+    by = "NES",
+    size = "NES",
+    title = "Wikipathways GSEA" ,
+    split = ".sign"
+  ) + facet_grid(. ~ .sign) +
+  scale_fill_gradientn(
+    limits = c(0, 0.05),
+    colours = rev(brewer.pal(9, "YlOrRd")),
+    name = "P-value"
+  ) + scale_y_discrete(
+    labels = function(x)
+      str_wrap(x, width = 20)
+  ) + scale_x_discrete(
+  labels = function(x)
+    str_wrap(x, width = 10)
+)) %>%
+  ggpar(
+      xlab = "",
+      ylab = "",
+      #title = "GO Biological Processes GSEA",
+      #submain = "GO Biological Processes Over-repesentation Analysis",
+      caption = paste("All", "genes"),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+
+ggsave(file.path(common_plots_dir, "Cluster_GSEA_Wikipathways.png"))
+
+
+ ck_gsea_go_wp %>% 
+   pairwise_termsim() %>% 
+    group_by(ID) %>%
+  mutate(r=n()) %>%
+  filter(r>1) %>%
+   #filter(NES > 0) %>%
+   #filter(ID %in% c("HALLMARK_MYC_TARGETS_V2", "HALLMARK_G2M_CHECKPOINT")) %>% 
+   #cnetplot()
+   
+   #filter(! ID %in% c("HALLMARK_MYC_TARGETS_V1", "HALLMARK_OXIDATIVE_PHOSPHORYLATION", "HALLMARK_E2F_TARGETS", "HALLMARK_G2M_CHECKPOINT", "HALLMARK_ALLOGRAFT_REJECTION", "HALLMARK_INTERFERON_ALPHA_RESPONSE")) %>%
+   cnetplot(showCategory=2, split = "~.sign"
+            #cex.params = list(foldChange = common_gsea_input$`L363 Carfilzomib-res`)
+            ) + guides(size= NULL)
+ 
+ggsave(file.path(common_plots_dir, "wp_cnet.png"), height = 14, width=14, bg="white")
+```
+
+
+```{r}
+ck_gse %>% pairwise_termsim() %>% emapplot()
+ck_gse %>% dotplot()
+L363_car_gse_GO <- 
+  gseGO(geneList     = L363_car_dir_gsea_genelist,
+              OrgDb        = org.Hs.eg.db,
+              keyType = "SYMBOL",
+              ont          = "All",
+              minGSSize    = 5,
+              maxGSSize    = 500,
+              pvalueCutoff = 0.05,
+              verbose      = FALSE,
+         pAdjustMethod = "fdr") 
+
+
+ck_gse %>% pairwise_termsim() %>% emapplot(showCategory=c("mitochondrial translation"))
+L363_car_gse_GO@result %>% View()
+AMO1_bor_gse_GO %>%
+  cnetplot(showCategory=3,
+           color.params = list(foldChange = AMO1_deseq_bor %>%
+    dplyr::filter(!is.na(hgnc_symbol), !is.na(stat)) %>%
+    arrange(desc(stat)) %>%
+  pull(log2FoldChange)))
+ck_gse %>% cnetplot(showCategory=c("oxidative phosphorylation"))
+ck_gse@compareClusterResult %>% View()
+
+
+L363_car_gse_GO %>%
+  cnetplot(showCategory=c("DNA-binding transcription repressor activity"),
+           color.params = list(foldChange = L363_deseq_car %>%
+    dplyr::filter(!is.na(hgnc_symbol), !is.na(stat)) %>%
+    arrange(desc(stat)) %>%
+  pull(log2FoldChange)))
+
+L363_car_gse_GO %>%
+  cnetplot(showCategory=c("DNA-binding transcription repressor activity"),
+           color.params = list(foldChange = L363_car_dir_gsea_genelist))
+
+L363_car_gse_GO %>%
+  pairwise_termsim() %>%
+  emapplot(showCategory=c("DNA-binding transcription repressor activity"))
+
+(ck_gse %>% 
+    dotplot(showCategory = 5, title = "Enriched Pathways" , split=".sign") + facet_grid(~.sign) 
+   +scale_fill_gradientn(limits=c(0, 0.05), colours=rev(brewer.pal(9,"YlOrRd")), name ="P-value") + scale_y_discrete(labels = function(x) str_wrap(x, width = 20)) 
+  #+scale_x_discrete(labels = function(x) str_wrap(x, width = 10))
+              + scale_size(range = c(1, 6), name = "Number of genes", breaks = seq(0, max(ck_gse@compareClusterResult$Count), by=20)) 
+  ) %>%
+    ggpar(
+      xlab = "Gene Ratio",
+      ylab = "Pathways",
+      title = paste(Plot_title, Test, "vs", Control),
+      submain = "GO Biological Processes",
+      caption="Over-repesentation Analysis",
+      #caption = paste(L2FC_direction, "genes"),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+
+#fortify.compareClusterResult
+L363_car_gse_GO %>% 
+  dotplot(showCategory = 5, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign) 
+
+ck %>% 
+  mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio)) %>%
+  dotplot(x="FE", by = "FE", size="Count") + facet_grid(~condition ~ direction) %>%
+    ggpar(
+      xlab = "Gene Ratio",
+      ylab = "Pathways",
+      title = paste(Plot_title, Test, "vs", Control),
+      submain = "GO Biological Processes",
+      caption="Over-repesentation Analysis",
+      #caption = paste(L2FC_direction, "genes"),
+      #palette = inferno(10),
+      ggtheme = theme_pubr(),
+      legend = "top",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      font.x = c("bold", "black", "11"),
+      font.y = c("bold", "black", "11"),
+      font.tickslab = c("bold", "black", "6"),
+      #font.family = "sans",
+      x.text.angle = 0
+    )
+
+ ck@compareClusterResult %>% View()
+```
+
+```{r}
+#BiocManager::install("rrvgo")
+
+library(genekitr)
+gs <- geneset::getGO(org = "human", ont = "bp")
+ck_ora_input %<>%
+  filter(condition %>% str_detect("L363")) %>%
+  filter(direction == "Upregulated")
+
+
+two_groups <- list(direction=ck_ora_input$direction)
+gora <- genORA(ck_ora_input$id, geneset=gs, universe = L363_deseq_car$ensembl_gene_id)
+
+gora_simple <- simGO(gora, sim_method = "Resnik")
+
+go_gse <- 
+
+ego <-  enrichGO(
+    gene= ck_ora_input$id,
+    OrgDb = org.Hs.eg.db,
+    keyType = "ENSEMBL",
+    ont = "BP",
+    minGSSize = 10,
+    maxGSSize = 500,
+    universe = L363_deseq_car$ensembl_gene_id,
+    qvalueCutoff = 0.05,
+    readable=TRUE
+  ) %>% pairwise_termsim()
+
+ego %<>%
+   mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio))
+
+ego@result %>% View()
+
+??clusterProfiler::simplify()
+package.version("clusterProfiler")
+
+ego_simple <- 
+  ego %>%
+  head(50) %>%
+  clusterProfiler::simplify(measure="Wang")
+ego_simple@result %>% View()
+
+ck %>% clusterProfiler::simplify()
+ck_gse %>% clusterProfiler::simplify()
+
+ego_simple@result %>% View()
+  filter(ID %in% gora_simple$Hs_BP_ID) %>% View()
+
+gora_simple %>%
+  filter(! Hs_BP_ID %in% ego_simple@result$ID)
+
+
+ck_gse_simple <- clusterProfiler::simplify(ck_gse)
+L363_car_gse_GO_simple <- clusterProfiler::simplify(L363_car_gse_GO)
+ck_gse_simple %>% dotplot(x="NES", by="Count", showCategory=5) + facet_grid("Cluster~.sign")
+ggsave(file.path(common_plots_dir, "test2.png"), height = 12, width=8)
+
+HS_HALLMARK <- msigdbr(species = "Homo sapiens", category = "H") %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+
+CP_Hallmark_gsea <- clusterProfiler::GSEA(L363_car_dir_gsea_genelist, 
+                                          pAdjustMethod="fdr",
+                                          TERM2GENE = HS_HALLMARK, by="fgsea")
+
+CP_Hallmark_gsea %>% pairwise_termsim() %>% dotplot(split=".sign") + facet_grid(~.sign)
+```
+
+
+```{r}
+L363_car_gse_GO_simple %>% 
+  dotplot(split=".sign", x="NES", showCategory=5) +  facet_grid(.~.sign)
+ggsave(file.path(common_plots_dir, "test1.png"), height = 10, width=8)
+
+#L363_car_gse_GO_simple@result %>% View()
+
+L363_car_gse_GO_simple %>% 
+  ridgeplot( showCategory = 5)
+ggsave(file.path(common_plots_dir, "test3.png"), height = 12, width=8)
+
+
+ck_gse_simple@compareClusterResult
+L363_car_gse_GO_simple@result
+
+plotGSEA(gse,
+  plot_type = "ridge",
+  show_pathway = 10, stats_metric = "p.adjust"
+)
+ck_gse_simple@geneClusters$`AMO1 Carfilzomib-res`
+L363_car_gse_GO_simple@geneList
+
+
+results_annotated %>%
+  filter(hgnc_symbol %in% L363_car_intersecting_hubs) %>%
+  filter(#padj < 0.05, 
+         abs(log2FoldChange) < 1, 
+         #baseMean > 25
+         )
+```
+
+
+```{r}
+
+```
+
+
+
+```{r upset_plots}
+library(ggVennDiagram)
+library(UpSetR)
+library(ComplexUpset)
+
+PI_resistant_UpSigGenes <- bind_rows(
+L363_deseq_car %>% 
+  filter(log2FoldChange > 0, padj < 0.05, baseMean > 25) %>%
+  select(ensembl_gene_id, ENTREZID, hgnc_symbol, log2FoldChange) %>%
+  mutate(sample = "L363 Carfilzomib resistant"),
+
+AMO1_deseq_car %>% 
+  filter(log2FoldChange > 0, padj < 0.05, baseMean > 25) %>%
+  select(ensembl_gene_id, ENTREZID, hgnc_symbol, log2FoldChange) %>%
+  mutate(sample = "AMO1 Carfilzomib resistant"),
+
+
+AMO1_deseq_bor %>% 
+  filter(log2FoldChange > 0, padj < 0.05, baseMean > 25) %>%
+  select(ensembl_gene_id, ENTREZID, hgnc_symbol, log2FoldChange) %>%
+  mutate(sample = "AMO1 Bortezomib resistant")
+) %>%
+  mutate(LFC = ifelse(log2FoldChange > 1, "LFC High", "LFC Low")) %>%
+  select(-log2FoldChange) %>%
+  mutate(Present = 1) %>%
+    spread(sample, Present, fill = 0) 
+
+
+PI_resistant_DownSigGenes <- bind_rows(
+L363_deseq_car %>% 
+  filter(log2FoldChange < 0, padj < 0.05, baseMean > 25) %>%
+  select(ensembl_gene_id, ENTREZID, hgnc_symbol, log2FoldChange) %>%
+  mutate(sample = "L363 Carfilzomib resistant"),
+
+AMO1_deseq_car %>% 
+  filter(log2FoldChange < 0, padj < 0.05, baseMean > 25) %>%
+  select(ensembl_gene_id, ENTREZID, hgnc_symbol, log2FoldChange) %>%
+  mutate(sample = "AMO1 Carfilzomib resistant"),
+
+
+AMO1_deseq_bor %>% 
+  filter(log2FoldChange < 0, padj < 0.05, baseMean > 25) %>%
+  select(ensembl_gene_id, ENTREZID, hgnc_symbol, log2FoldChange) %>%
+  mutate(sample = "AMO1 Bortezomib resistant")
+) %>%
+  mutate(LFC = ifelse(log2FoldChange < -1, "LFC High", "LFC Low")) %>%
+  select(-log2FoldChange) %>%
+  mutate(Present = 1) %>%
+    spread(sample, Present, fill = 0) 
+
+ComplexUpset::upset(PI_resistant_UpSigGenes, 
+                    c("AMO1 Bortezomib resistant", "AMO1 Carfilzomib resistant", "L363 Carfilzomib resistant"), 
+                    name='PI resistant cells, upregulated', 
+                    width_ratio=0.5, 
+                    min_degree = 2,
+                    labeller = function(x) str_wrap(x, width = 10),
+                    base_annotations=list(
+        'Intersection size'=intersection_size(
+            counts=TRUE,
+            mapping=aes(fill=LFC)
+        )))
+
+ggsave(file.path(common_plots_dir, "all_upregulated_upset.png"), width = 6, height=5)
+
+ComplexUpset::upset(PI_resistant_DownSigGenes, 
+                    c("AMO1 Bortezomib resistant", "AMO1 Carfilzomib resistant", "L363 Carfilzomib resistant"), 
+                    name='PI resistant cells, downregulated', 
+                    labeller = function(x) str_wrap(x, width = 10),
+                    width_ratio=0.5, 
+                    min_degree = 2,
+                    base_annotations=list(
+        'Intersection size'=intersection_size(
+            counts=TRUE,
+            mapping=aes(fill=LFC)
+        )))
+
+
+ggsave(file.path(common_plots_dir, "all_downregulated_upset.png"), width = 6, height=5)
+```
+
+
+```{r clusterProfiler_intersecting_ora}
+common_all_three_background_entrez <- unique(
+AMO1_deseq_car %>%
+  filter(baseMean > 25) %>%
+  pull(ENTREZID),
+L363_deseq_car %>%
+  filter(baseMean > 25) %>%
+  pull(ENTREZID),
+AMO1_deseq_bor %>%
+  filter(baseMean > 25) %>%
+  pull(ENTREZID)
+)
+common_all_three_background_entrez_low <- c(AMO1_deseq_car$ENTREZID, AMO1_deseq_bor$ENTREZID, L363_deseq_car$ENTREZID) %>%
+  unique() %>% discard(is.na)
+
+common_all_three_background_symbol <- c(AMO1_deseq_car$hgnc_symbol, AMO1_deseq_bor$hgnc_symbol, L363_deseq_car$hgnc_symbol) %>%
+  unique() %>% discard(is.na)
+
+PI_resistant_UpSigGenes_ORA_input <- 
+  PI_resistant_UpSigGenes %>% 
+  mutate(common = `AMO1 Bortezomib resistant`+`AMO1 Carfilzomib resistant`+`L363 Carfilzomib resistant`) %>%
+  filter(common > 2) %>%
+  select(ENTREZID) %>%
+  drop_na() %>%
+  mutate(direction = "Upregulated")
+  #filter(LFC == "LFC High") %>% 
+  
+PI_resistant_DownSigGenes_ORA_input <- 
+  PI_resistant_DownSigGenes %>% 
+  mutate(common = `AMO1 Bortezomib resistant`+`AMO1 Carfilzomib resistant`+`L363 Carfilzomib resistant`) %>%
+  filter(common > 2) %>%
+  select(ENTREZID) %>%
+  drop_na() %>%
+  mutate(direction = "Downregulated")
+
+PI_resistant_common_ORA_input <-
+bind_rows(PI_resistant_UpSigGenes_ORA_input, PI_resistant_DownSigGenes_ORA_input)
+ 
+PI_resistant_common_ora_go_bp <- compareCluster(ENTREZID~direction, data=PI_resistant_common_ORA_input, universe=common_all_three_background_entrez, fun="enrichGO", ont="BP", OrgDb= "org.Hs.eg.db", keyType="ENTREZID", readable=TRUE, qvalueCutoff=0.2, pAdjustMethod="fdr") %>%
+  clusterProfiler::simplify() %>%
+  mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio))
+
+PI_resistant_common_ora_go_mf <- compareCluster(ENTREZID~direction, data=PI_resistant_common_ORA_input, universe=common_all_three_background_entrez, fun="enrichGO", ont="MF", OrgDb= "org.Hs.eg.db", keyType="ENTREZID", readable=TRUE, qvalueCutoff=0.2, pAdjustMethod="fdr") %>%
+  clusterProfiler::simplify() %>%
+  mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio))
+
+PI_resistant_common_ora_hallmark <- 
+  compareCluster(ENTREZID~direction, data=PI_resistant_common_ORA_input, universe=common_all_three_background_entrez, fun="enricher", qvalueCutoff=0.2, pAdjustMethod="fdr", TERM2GENE=HS_HALLMARK) %>%
+      setReadable(
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID") %>%
+  mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio))
+
+
+PI_resistant_common_ora_reactome <- compareCluster(ENTREZID~direction, data=PI_resistant_common_ORA_input, universe=common_all_three_background_entrez, fun="enrichPathway", organism = "human", qvalueCutoff=0.2, pAdjustMethod="fdr", readable=TRUE) %>% #setReadable(
+      #OrgDb = org.Hs.eg.db,
+      #keyType = "ENTREZID") %>%
+  mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio))
+
+
+PI_resistant_common_ora_wp <- compareCluster(ENTREZID~direction, data=PI_resistant_common_ORA_input, universe=common_all_three_background_entrez, fun="enrichWP", organism="Homo sapiens",
+    minGSSize    = 5,
+    maxGSSize    = 500,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "fdr"
+  
+  ) %>% 
+    setReadable(OrgDb = org.Hs.eg.db,
+                keyType = "ENTREZID") %>%
+  mutate(FE = DOSE::parse_ratio(GeneRatio)/DOSE::parse_ratio(BgRatio))
+
+
+  
+  #enrich_go2 <- pairwise_termsim(enrich_go)
+  emapplot <- (emapplot(enrich_go,
+                        showCategory = 20,
+                        color = "p.adjust",
+                        layout = "nicely",
+                        #legend_n = 5,
+                        cex_label_category = 0.5,
+                        cex_category = 2,
+
+  )
+
+  + scale_colour_gradientn(limits=c(0, 0.05), colours=rev(brewer.pal(9,"Blues")), name ="P-value", )
+  + scale_size(range = c(2, 8), name = "Number of genes", breaks = seq(0, max(enrich_go$Count), by=20))
+  ##guide = guide_colorbar(reverse = TRUE)
+  + guides(colour = guide_legend(title.position = "top"))
+
+  ##  + geom_node_label(aes(label = str_wrap(name, 15)),repel=TRUE, fontface = "bold", family = "Comic Sans MS", size = 2, color = "red", check_overlap = TRUE, segment.colour = "#666666", segment.size = 0.5, arrow = NULL, force = 10, alpha = 0.1,) ###this can be used to add labels manually, use gginnards or ggedit to remove existing layer
+
+  ) %>%
+    ggpar(
+
+      title = title,
+      submain = "GO Biological process",
+      caption = paste(L2FC_direction, "genes"),
+      #palette = inferno(10),
+      #ggtheme = theme_grey(),
+      legend = "right",
+      font.title = c("bold", "brown", 18),
+      font.subtitle = c("bold", "dark grey", 14),
+      font.caption = c("bold.italic", "royal blue", 12),
+      font.legend = c("bold", "black", 6),
+      #font.x = c("bold", "black", "11"),
+      #font.y = c("bold", "black", "11"),
+      #font.tickslab = c("bold", "black", "6"),
+      tickslab = FALSE,
+      #font.family = "Comic Sans MS",
+      x.text.angle = 0
+    )
+
+  ## resetting some pathway name displays to be readable
+  emapplot$data$name <- str_wrap(emapplot$data$name, 10)
+  emapplot$layers[[3]]$geom$default_aes$fontface <- "bold"
+
+
+
+  gene_set_plots <- list(dotplot, emapplot, ridgeplot)
+  return(gene_set_plots)
+  #dotplot
+  ##Alternatively use the genes list to write a text file using write.table to create to files - a list of all genes in the analysis and a list of significant differentially expressred genes.These text files can be analysed in GORilla
+
+
+
+  
+
+clusterProfiler_ORA_dotplot(PI_resistant_common_ora_go_bp, title="GO Biological processes")
+clusterProfiler_ORA_dotplot(PI_resistant_common_ora_go_mf, title="GO Molecular function")
+clusterProfiler_ORA_dotplot(PI_resistant_common_ora_reactome, title="GO Reactome pathways")
+clusterProfiler_ORA_dotplot(PI_resistant_common_ora_hallmark, title="Hallmark genesets")
+clusterProfiler_ORA_dotplot(PI_resistant_common_ora_wp, title="Wikipathways genesets")
+
+PI_resistant_common_ora_go_bp %>% pairwise_termsim() %>% emapplot()
+PI_resistant_common_ora_go_bp %>% pairwise_termsim() %>% 
+  cnetplot(showCategory = 2)
+PI_resistant_common_ora_hallmark %>% pairwise_termsim() %>% 
+ # filter(ID %in% c("HALLMARK_MYC_TARGETS_V2", "HALLMARK_MYC_TARGETS_V1", "HALLMARK_OXIDATIVE_PHOSPHORYLATION")) %>%
+  cnetplot(showCategory = 1)
+
+collectri_TFs <- collectri_net$source %>% unique()
+collectri_net %>%
+    filter(source %in% c("MXD1", "SOX2", "ETS1", "TP63")) %>% View()
+collectri_net$source %>% unique() %>% length()
+collectri_net %>%
+    filter(source %in% c("SOX2")) %>% View()
+PI_resistant_UpSigGenes %>%
+  filter(`AMO1 Bortezomib resistant` > 0, 
+         hgnc_symbol %in% collectri_TFs,
+         LFC == "LFC High"
+         ) %>% nrow() + 
+  
+PI_resistant_DownSigGenes %>%
+  filter(`AMO1 Bortezomib resistant` > 0, 
+         hgnc_symbol %in% collectri_TFs,
+         LFC == "LFC High"
+         ) %>% nrow()
+
+PI_resistant_UpSigGenes %>% 
+  mutate(common = `AMO1 Bortezomib resistant`+`AMO1 Carfilzomib resistant`+`L363 Carfilzomib resistant`) %>%
+  filter( LFC == "LFC High") %>%
+  filter(common > 2) %>% nrow()
+  #filter(hgnc_symbol %in% collectri_TFs) %>% 
+  #pull(hgnc_symbol)
+
+PI_resistant_DownSigGenes %>% 
+  mutate(common = `AMO1 Bortezomib resistant`+`AMO1 Carfilzomib resistant`+`L363 Carfilzomib resistant`) %>%
+  filter( LFC == "LFC High") %>%
+  filter(common > 2) %>% nrow()
+  #filter(hgnc_symbol %in% collectri_TFs) %>% 
+  #pull(hgnc_symbol)
+
+L363_car_hub_genes_XGR_NET <- 
+L363_deseq_car %>%
+  filter(hgnc_symbol %in% L363_car_intersecting_hubs) %>%
+  #filter(log2FoldChange > 0) %>% 
+  select(hgnc_symbol, padj) 
+
+write.table(L363_car_hub_genes_XGR_NET, "results/common_plots/test1.txt", row.names = FALSE, quote = F)
+
+results_annotated
+make_heatmap(specific_tfs = intersecting_hubs, pathways = NULL)
+```
 

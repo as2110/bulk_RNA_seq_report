@@ -4,7 +4,7 @@
 
 # Session Data files
 .RData
-
+*.RData
 # User-specific files
 .Ruserdata
 
@@ -45,6 +45,8 @@ vignettes/*.pdf
 /raw_data/*
 /meta_data/*
 /design_files/*
+/term_visualizations/*
 /RNA_seq_reports/*
+*.txt
 !/**/.gitkeep
 !/**/**/.gitkeep

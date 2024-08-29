@@ -66,7 +66,7 @@ cemitool_results <- cemitool(cemitool_input,
                              interactions = int_df, 
                              filter = TRUE,
                              #filter_pval = 0.1,
-                             #apply_vst = TRUE,
+                             apply_vst = FALSE,
                              n_genes = 4000,
                              #apply_vst = TRUE,
                              #set_beta = 18,
@@ -83,11 +83,11 @@ CEMiTool_sig_modules <- CEMiTool::gsea_data(cemitool_results)[[3]] %>% filter(.d
 
 CEMiTool_hub_genes <- CEMiTool::get_hubs(cemitool_results, 25)[CEMiTool_sig_modules]
 
+#generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report_01_beta18"))
 
-generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report_01_8000genes"))
+generate_report(cemitool_results, force=TRUE, directory = file.path(results_dir, "CEMItool_report_01_4000genes"))
 
-
-
+CEMiTool_hub_genes
 ```
 
 [CEMiTool report](`r list.files("*.html", path = file.path(getwd(), results_dir, "CEMItool_report"), full.names = TRUE)`)
@@ -552,16 +552,6 @@ Regenrich_object = RegenrichSet(expr = regenrich_input, # expression data (matri
                       enrichTest = "FET") # enrichment analysis method
 
 
-Regenrich_results_COEN = regenrich_diffExpr(Regenrich_object) %>% 
-  regenrich_network(BPPARAM = bpparam) %>% 
-  regenrich_enrich() %>% 
-  regenrich_rankScore() 
-  
-
-Regenrich_results_COEN_results <- results_score(Regenrich_results_COEN)
-
-
-
 
 ### not run
 library(BiocParallel)
@@ -569,6 +559,18 @@ library(BiocParallel)
 bpparam = register(MulticoreParam(workers = 4, RNGseed = 1234))
 # on Windows computers (use 2 workers)
 #bpparam = register(SnowParam(workers = 2, RNGseed = 1234))
+Regenrich_results_COEN = regenrich_diffExpr(Regenrich_object) %>% 
+  regenrich_network(BPPARAM = bpparam) %>% 
+  regenrich_enrich() %>% 
+  regenrich_rankScore() 
+  
+invisible(gc())
+Regenrich_results_COEN_results <- results_score(Regenrich_results_COEN)
+
+
+
+
+
 
 invisible(gc())
 
@@ -584,4 +586,6 @@ Regenrich_results_GRN_results = Regenrich_results_GRN %>%
   regenrich_enrich() %>% 
   regenrich_rankScore() %>%
   results_score()
+
+Regenrich_results_GRN_results$reg
 ```
