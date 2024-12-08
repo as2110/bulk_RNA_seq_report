@@ -1296,6 +1296,190 @@ DIANE::run_app()
 
 
 
+```{r}
+library(XGR)
+#install.packages("genekitr")
+library(genekitr)
+conflicted::conflict_prefer("filter", "dplyr")
+conflicted::conflicts_prefer(dplyr::select)
+L363_car_dir <- "C:\\Users\\asrinivasan\\Documents\\R\\GIT\\abcd\\results\\L363_WT_vs_Carfilzomib\\"
+AMO1_car_dir <- "C:\\Users\\asrinivasan\\Documents\\R\\GIT\\abcd\\results\\AMO1_WT_vs_Carfilzomib\\"
+AMO1_bor_dir <- "C:\\Users\\asrinivasan\\Documents\\R\\GIT\\abcd\\results\\AMO1_WT_vs_Bortezomib\\"
+a <- data.table::fread("C:\\Users\\asrinivasan\\Documents\\R\\GIT\\abcd\\results\\L363_WT_vs_Carfilzomib\\L363_Carfilzomib_intersecting_hubs.txt") %>% pull()
+b <- data.table::fread("C:\\Users\\asrinivasan\\Desktop\\Projects\\May 2023\\PI resistant cell lines results\\results\\FINAL RUN\\L363_Carfilzomib_intersecting_hubs.txt") %>% pull()
+c <- data.table::fread("C:\\Users\\asrinivasan\\Documents\\R\\GIT\\abcd\\results\\AMO1_WT_vs_Bortezomib\\AMO1_Bortezomib_intersecting_hubs.txt") %>% pull()
+d <- data.table::fread("C:\\Users\\asrinivasan\\Documents\\R\\GIT\\abcd\\results\\AMO1_WT_vs_Carfilzomib\\AMO1_Carfilzomib_intersecting_hubs.txt") %>% pull()
+intersect(intersect(a, c), d)
+TFs <- read.csv("C:\\Users\\asrinivasan\\Documents\\R\\GIT\\abcd\\TFDB.csv") %>%
+  dplyr::filter(Is.TF. == "Yes") %>% pull(HGNC.symbol)
+res <- "deseq2_results_annotated.tsv"
+L363_car_results_annotated <- read.delim(file.path(L363_car_dir, res))
+AMO1_car_results_annotated <- read.delim(file.path(AMO1_car_dir, res))
+AMO1_bor_results_annotated <- read.delim(file.path(AMO1_bor_dir, res))
+L363_car_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(hgnc_symbol %in% TFs) %>% View()
+AMO1_car_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(hgnc_symbol %in% TFs) %>% View()
+
+
+AMO1_Bor_UG <- AMO1_bor_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(log2FoldChange > 1)
+
+AMO1_Bor_DG <- AMO1_bor_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(log2FoldChange < -1)
+
+
+AMO1_Car_UG <- AMO1_car_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(log2FoldChange > 1)
+
+AMO1_Car_DG <- AMO1_car_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(log2FoldChange < -1)
+
+L363_Car_UG <- L363_car_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(log2FoldChange > 1)
+
+L363_Car_DG <- L363_car_results_annotated %>%
+  dplyr::filter(padj < 0.05, 
+         baseMean > 25, 
+         abs(log2FoldChange) > 1) %>%
+  dplyr::filter(log2FoldChange < -1)
+
+library(XGR)  
+ontology.algorithm <- ifelse(structured, "lea", "none")
+  xgr_data <- UG %>% 
+  dplyr::filter(!is.na(hgnc_symbol) & !duplicated(hgnc_symbol))%>%
+  dplyr::pull(hgnc_symbol)
+background <- AMO1_bor_results_annotated %>% 
+  dplyr::filter(!is.na(hgnc_symbol) & !duplicated(hgnc_symbol)) %>%
+  dplyr::pull(hgnc_symbol)
+ontology <- list("KEGG" = "MsigdbC2KEGG", "Reactome" = "MsigdbC2REACTOME", "DO" = "DO", "GOMF" = "GOMF", "GPBP" = "GOBP")
+eTerm <- xEnricherGenes(data=xgr_data, background=background, ontology= "MsigdbC2REACTOME", ontology.algorithm = "none")
+xDefineOntology(ontology = 'MsigdbC2REACTOME')
+eTerm_concise <- xEnrichConciser(eTerm)
+
+
+bp <- xEnrichBarplot(eTerm, top_num=10, displayBy="adjp")
+bp <- bp + scale_x_discrete(labels = function(x) str_wrap(x, width = 40)) 
+print(bp)
+rm(RData.location)
+RData.location <- "http://galahad.well.ox.ac.uk/bigdata"
+res <- xRDataLoader(RData.customised='JKscience_TS1A', RData.location=RData.location)
+package.version("XGR")
+library(XGR)
+```
+
+
+```{r}
+
+kegg <- geneset::getKEGG(org = "hsa",category = "pathway")
+go_mf <- geneset::getGO(org = "human", ont = "mf")
+go_bp <- geneset::getGO(org = "human", ont = "bp")
+go_cc <- geneset::getGO(org = "human", ont = "cc")
+msig <- geneset::getMsigdb(org = "human", category = "H")
+reactome <- geneset::getReactome(org = "human")
+do <- geneset::getHgDisease(source = "do")
+enricher_TRRUST_Transcription_Factors_2019 <- geneset::getEnrichrdb(org="human", library="TRRUST_Transcription_Factors_2019")
+#geneset::enrichr_metadata %>%
+#  filter(organism == "human")
+
+
+```
+
+```{r}
+go_mf_ora <- genORA(AMO1_Bor_DG$hgnc_symbol, geneset = go_mf, p_cutoff = 0.5, q_cutoff = 0.5, universe = AMO1_bor_results_annotated$hgnc_symbol)
+p4 <- plotEnrich(go_mf_ora, plot_type = "bar", wrap_length = 25,
+                 up_color = "#E69056", down_color = "#325CAC")
+p4
+
+go_bp_ora <- genORA(UG$hgnc_symbol, geneset = go_bp, p_cutoff = 0.05, q_cutoff = 0.05)
+p4 <- plotEnrich(go_bp_ora, plot_type = "bar", wrap_length = 25,
+                 up_color = "#E69056", down_color = "#325CAC")
+p4
+```
+
+```{r}
+plotVolcano(L363_car_results_annotated %>%
+              select(symbol=hgnc_symbol, logFC  = log2FoldChange, adj.P.Val=padj), 
+            stat_metric = "p.adjust",
+            remove_legend=T,
+            show_gene=c("SOX2", "ETS1", "IRF2", "TP63", "MXD1"))
+```
+
+
+
+```{r enrichR, include=FALSE}
+library(enrichR)
+#invisible(gc())
+setEnrichrSite("Enrichr") # Human genes
+dbs <- listEnrichrDbs()
+dbs <- c("GO_Biological_Process_2021",
+         "GO_Cellular_Component_2021",
+         "GO_Molecular_Function_2021",
+         "Reactome_2022", 
+         "ChEA_2022")
+
+
+results_annotated <- AMO1_bor_results_annotated
+
+universe <- results_annotated %>% pull(hgnc_symbol)
+UpSigGenes <- results_annotated %>%
+    dplyr::filter(padj < 0.05, log2FoldChange > 1, baseMean > 25
+                  #!is.na(ENSEMBL)
+    ) %>% pull(hgnc_symbol)
+DownSigGenes <- results_annotated %>%
+    dplyr::filter(padj < 0.05, log2FoldChange < -1, baseMean > 25
+                  #!is.na(ENSEMBL)
+    ) %>% pull(hgnc_symbol)
+
+
+UPenriched <- enrichr(UpSigGenes, dbs)
+DOWNenriched <- enrichr(DownSigGenes, dbs) 
+
+enrichR_plot <- list()
+for (i in 1:length(dbs)) {
+  enrichR_plot[[i]] <- enrichR::plotEnrich(UPenriched[[i]], showTerms = 5, numChar = 40, y = "Count", orderBy = "Combined.Score")
+  enrichR_plot[[i+length(dbs)]] <- enrichR::plotEnrich(DOWNenriched[[i]], showTerms = 5, numChar = 100, y = "Count", orderBy = "Combined.Score")
+}
+
+
+enrichR::plotEnrich(UPenriched[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value")
+```
+
+##Upregulated Pathways
+```{r enricher plots, fig.height=5, fig.width=7}
+
+
+for (i in 1:length(dbs)) {
+  enrichR_plot[[i]] <- enrichR_plot[[i]] + scale_x_discrete(label = function(x) str_wrap(x, width = 10))
+  print(enrichR_plot[[i]])
+  ggsave(filename =  paste0(plots_dir, Plot_title, "_overrepresented_", dbs[i], "_Enricher", "_plot.png"), width = 7, height = 7, units = "in")
+
+}
+
+```
+
+
 
 
 
