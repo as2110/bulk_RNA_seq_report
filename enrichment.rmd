@@ -839,7 +839,7 @@ CeTF_TFs <- TFs %>%
         column = "SYMBOL"
       ) %>% unique()
 
-TFs <- read.csv("TFDB.csv") %>%
+TFs <- read.csv("TF_inputs/TFDB.csv") %>%
   dplyr::filter(Is.TF. == "Yes") %>%
   filter(HGNC.symbol %in% CeTF_TFs) %>% 
   pull(HGNC.symbol)
@@ -918,7 +918,7 @@ RcisT_geneLists <- list(CarUp = UpSigGenes, CarDown = DownSigGenes)
 data(motifAnnotations_hgnc)
 
 
-motifRankings <- importRankings("../hg38_10kbp_up_10kbp_down_full_tx_v10_clust.genes_vs_motifs.rankings.feather")
+motifRankings <- importRankings("TF_inputs/hg38_10kbp_up_10kbp_down_full_tx_v10_clust.genes_vs_motifs.rankings.feather")
 
 # Motif enrichment analysis:
 #motifEnrichmentTable_wGenes <- cisTarget(RcisT_geneLists, hg19_500bpUpstream_motifRanking_cispbOnly,
