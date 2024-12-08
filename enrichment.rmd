@@ -918,7 +918,7 @@ RcisT_geneLists <- list(CarUp = UpSigGenes, CarDown = DownSigGenes)
 data(motifAnnotations_hgnc)
 
 
-motifRankings <- importRankings("../hg38_10kbp_up_10kbp_down_full_tx_v10_clust.genes_vs_motifs.rankings.feather")
+motifRankings <- importRankings("TF_inputs/hg38_10kbp_up_10kbp_down_full_tx_v10_clust.genes_vs_motifs.rankings.feather")
 
 # Motif enrichment analysis:
 #motifEnrichmentTable_wGenes <- cisTarget(RcisT_geneLists, hg19_500bpUpstream_motifRanking_cispbOnly,
